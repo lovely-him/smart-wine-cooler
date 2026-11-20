@@ -1,0 +1,47 @@
+{
+  "infer": {
+    "backend": "onnx",
+    "model": "tools/embed_lab/models/yolov8x/yolov8x.onnx",
+    "input_size": 640,
+    "class_id": 39,
+    "conf": 0.3,
+    "iou": 0.45,
+    "rotate": 90
+  },
+  "cameras": [
+    {
+      "id": "layer1",
+      "name": "第一层",
+      "capture": {
+        "backend": "image_dir",
+        "source": "tmp/20261117134147",
+        "order": "bottom_to_top"
+      }
+    },
+    {
+      "id": "layer2",
+      "name": "第二层（板卡摄像头）",
+      "capture": {
+        "backend": "v4l2",
+        "device": "/dev/video21",
+        "width": 1280,
+        "height": 720,
+        "skip": 4,
+        "order": "bottom_to_top"
+      }
+    }
+  ],
+  "vision": {
+    "enabled": false,
+    "base_url": "https://api.siliconflow.cn/v1",
+    "model": "",
+    "timeout": 30,
+    "daily_limit": 50,
+    "cache": "cache/vision-cache.json",
+    "max_side": 512,
+    "cluster_threshold": 0.8
+  },
+  "pipeline": {
+    "cluster_threshold": 0.8
+  }
+}

@@ -1,0 +1,24 @@
+# 生成物：不提交
+__pycache__/
+/check*.onnx
+*.pt
+/*.onnx
+*.rknn
+
+#
+/.tmp/
+/tmp/
+
+#
+.github/skills/
+.env
+config/app.json
+cache/
+
+# 本地环境与数据：不提交
+/data/
+/tools/.venv/
+/tools/embed_lab/.venv/
+/tools/embed_lab/models/
+/tools/embed_lab/data/
+/tools/embed_lab/out/
