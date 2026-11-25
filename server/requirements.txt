@@ -1,0 +1,6 @@
+# 两端共用：宿主机与板子都要装
+fastapi
+uvicorn
+pillow
+numpy
+requests

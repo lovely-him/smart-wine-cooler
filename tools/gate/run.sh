@@ -1,140 +1,102 @@
 #!/usr/bin/env bash
-# 用法: tools/gate/run.sh <子命令> [参数]
-#   onnx-vs-rknn --images <目录> [--conf 0.15] [--rotate 90]   检测：宿主 onnx 与板卡 rknn 同图对比
-#   embed-onnx-vs-rknn --images <目录>                        特征：同一批裁剪图的余弦相似度
-#   本机配置（板卡地址、模型路径）写在 tools/gate/.env，模板见 .env.example
-#   退出码: 0 通过 / 1 不通过 / 2 环境或参数问题
+# 用法: tools/gate/run.sh <图片目录> [张数]
+#   同一批图在宿主机（onnx）与板子（rknn）上各跑一遍：检测比框数与分数，特征比余弦。
+#   脚本通过 ssh 的标准输入送过去，不在板子上留文件；只把图片临时拷进去。
+# 本机配置（板子地址）读 tools/deploy/.env
+# 退出码: 0 全部一致 / 1 有不一致 / 2 环境或参数问题
 set -euo pipefail
 
 # ── 路径与常量 ──
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
-PY=$ROOT/tools/.venv/bin/python
-ENVFILE=$HERE/.env
-GATE_SRC=$HERE/detect_json.py
-CMP_SRC=$HERE/compare.py
-EMBED_SRC=$HERE/embed_json.py
-EMBED_CMP=$HERE/embed_compare.py
+PY=$ROOT/.venv/bin/python
+ENVFILE=$ROOT/tools/deploy/.env
+DETECT=$HERE/detect.py
+EMBED=$HERE/embed.py
+COMPARE=$HERE/compare.py
 OUTDIR=$ROOT/cache/gate
-DEFAULT_CONF=0.15
-DEFAULT_ROTATE=90
+REMOTE_IMAGE=/tmp/gate-image.jpg
+REMOTE_OUT=/tmp/gate-out.json
 
 # ── 函数 ──
-usage() { sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() {
+    awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"
+    exit 2
+}
+
+die() { printf '[fail] %s\n' "$*" >&2; exit 2; }
+log() { printf '[gate] %s\n' "$*"; }
 
 load_env() {
-    [ -f "$ENVFILE" ] || return 0
+    [ -f "$ENVFILE" ] || die "缺少 $ENVFILE"
     set -a
     # shellcheck disable=SC1090
     . "$ENVFILE"
     set +a
+    [ -n "${BOARD_HOST:-}" ] || die "BOARD_HOST 为空"
+    SSH_TARGET=$BOARD_USER@$BOARD_HOST
 }
 
-resolve() {
-    BOARD_HOST=${BOARD_HOST:-192.168.64.18}
-    BOARD_USER=${BOARD_USER:-kickpi}
-    BOARD_ROOT=${BOARD_ROOT:-/home/kickpi/lab}
-    BOARD_PYTHON=${BOARD_PYTHON:-python3}
-    HOST_MODEL=${HOST_MODEL:-$ROOT/tools/embed_lab/models/yolov8n/yolov8n.onnx}
-    BOARD_MODEL=${BOARD_MODEL:-$BOARD_ROOT/models/yolov8n_rk3588_int8_mmse.rknn}
-    EMBED_HOST_MODEL=${EMBED_HOST_MODEL:-$ROOT/tools/embed_lab/models/mobilenetv2_pool.onnx}
-    EMBED_BOARD_MODEL=${EMBED_BOARD_MODEL:-$BOARD_ROOT/models/mobilenetv2_pool_rk3588_int8.rknn}
-    SSH="$BOARD_USER@$BOARD_HOST"
+collect_images() {
+    local dir=$1 limit=$2
+    [ -d "$dir" ] || die "图片目录不存在: $dir"
+    find "$dir" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \) \
+        | sort | head -n "$limit"
 }
 
-need_env() {
-    local model=$1
-    [ -x "$PY" ] || { printf '[FAIL] 缺少 venv: %s\n' "$PY" >&2; exit 2; }
-    [ -f "$model" ] || { printf '[FAIL] 宿主模型不存在: %s\n' "$model" >&2; exit 2; }
+run_one() {
+    local image=$1 name failed=0
+    name=$(basename "$image")
+
+    "$PY" "$DETECT" "$image" --backend onnx --out "$OUTDIR/host-d-$name.json" \
+        2>"$OUTDIR/host-d-$name.err" || { warn_and_fail "宿主机检测失败"; return 1; }
+    rsync -aq "$image" "$SSH_TARGET:$REMOTE_IMAGE" || return 1
+    ssh -o BatchMode=yes "$SSH_TARGET" \
+        "cd '$BOARD_DIR' && $BOARD_PYTHON - '$REMOTE_IMAGE' --backend rknn --out $REMOTE_OUT" \
+        <"$DETECT" >/dev/null 2>"$OUTDIR/board-d-$name.err" \
+        || { warn_and_fail "板子检测失败"; return 1; }
+    rsync -aq "$SSH_TARGET:$REMOTE_OUT" "$OUTDIR/board-d-$name.json" || return 1
+
+    "$PY" "$EMBED" "$image" --backend onnx --out "$OUTDIR/host-e-$name.json" \
+        2>"$OUTDIR/host-e-$name.err" || { warn_and_fail "宿主机特征失败"; return 1; }
+    ssh -o BatchMode=yes "$SSH_TARGET" \
+        "cd '$BOARD_DIR' && $BOARD_PYTHON - '$REMOTE_IMAGE' --backend rknn --out $REMOTE_OUT" \
+        <"$EMBED" >/dev/null 2>"$OUTDIR/board-e-$name.err" \
+        || { warn_and_fail "板子特征失败"; return 1; }
+    rsync -aq "$SSH_TARGET:$REMOTE_OUT" "$OUTDIR/board-e-$name.json" || return 1
+
+    echo "--- $name"
+    "$PY" "$COMPARE" "$OUTDIR/host-d-$name.json" "$OUTDIR/board-d-$name.json" || failed=1
+    "$PY" "$COMPARE" "$OUTDIR/host-e-$name.json" "$OUTDIR/board-e-$name.json" || failed=1
+    return "$failed"
 }
 
-need_board() {
-    local model=$1
-    ssh -o BatchMode=yes "$SSH" "test -f $model" 2>/dev/null || {
-        printf '[FAIL] 板卡上找不到模型: %s\n       先推送: scp <rknn> %s:%s\n' \
-            "$model" "$SSH" "$(dirname "$model")" >&2
-        exit 2
-    }
+warn_and_fail() {
+    printf '[fail] %s（看 %s/*.err）\n' "$1" "$OUTDIR" >&2
 }
 
-# 共享四步：宿主推理 → 推送 → 板卡推理 → 拉回比对
-remote_gate() {
-    local src=$1 cmp=$2 host_model=$3 board_model=$4 images=$5
-    shift 5
-    local extra=("$@")
-
-    need_env "$host_model"
-    need_board "$board_model"
-    mkdir -p "$OUTDIR"
-    local name
-    name=$(basename "$(cd "$images" && pwd)")
-
-    printf '\n== 1/4 宿主 ==\n'
-    "$PY" "$src" --backend onnx --model "$host_model" \
-        --images "$images" --out "$OUTDIR/host.json" "${extra[@]}"
-
-    printf '\n== 2/4 推送脚本与图片 ==\n'
-    ssh -o BatchMode=yes "$SSH" "mkdir -p $BOARD_ROOT/gate $BOARD_ROOT/img"
-    tar czf - -C "$ROOT" services "tools/gate/$(basename "$src")" |
-        ssh -o BatchMode=yes "$SSH" "tar xzf - -C $BOARD_ROOT"
-    tar czf - -C "$(dirname "$images")" "$name" |
-        ssh -o BatchMode=yes "$SSH" "tar xzf - -C $BOARD_ROOT/img"
-
-    printf '\n== 3/4 板卡 ==\n'
-    local remote_args=""
-    local item
-    for item in "${extra[@]}"; do remote_args+=" $item"; done
-    ssh -o BatchMode=yes "$SSH" "cd $BOARD_ROOT && $BOARD_PYTHON tools/gate/$(basename "$src") \
-        --backend rknn --model $board_model --images img/$name \
-        --out gate/board.json$remote_args"
-
-    printf '\n== 4/4 比对 ==\n'
-    scp -q -o BatchMode=yes "$SSH:$BOARD_ROOT/gate/board.json" "$OUTDIR/board.json"
-    "$PY" "$cmp" --ref "$OUTDIR/host.json" --test "$OUTDIR/board.json"
-}
-
-cmd_onnx_vs_rknn() {
-    local images="" conf=$DEFAULT_CONF rotate=$DEFAULT_ROTATE
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            --images) images=${2:?--images 需要目录}; shift 2 ;;
-            --conf)   conf=${2:?--conf 需要数值}; shift 2 ;;
-            --rotate) rotate=${2:?--rotate 需要角度}; shift 2 ;;
-            *) printf '[FAIL] 未知参数: %s\n' "$1" >&2; exit 2 ;;
-        esac
-    done
-    [ -n "$images" ] || usage
-    [ -d "$images" ] || { printf '[FAIL] 图片目录不存在: %s\n' "$images" >&2; exit 2; }
-
-    remote_gate "$GATE_SRC" "$CMP_SRC" "$HOST_MODEL" "$BOARD_MODEL" "$images" \
-        --conf "$conf" --rotate "$rotate"
-}
-
-cmd_embed_onnx_vs_rknn() {
-    local images=""
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            --images) images=${2:?--images 需要目录}; shift 2 ;;
-            *) printf '[FAIL] 未知参数: %s\n' "$1" >&2; exit 2 ;;
-        esac
-    done
-    [ -n "$images" ] || usage
-    [ -d "$images" ] || { printf '[FAIL] 图片目录不存在: %s\n' "$images" >&2; exit 2; }
-
-    remote_gate "$EMBED_SRC" "$EMBED_CMP" "$EMBED_HOST_MODEL" "$EMBED_BOARD_MODEL" "$images"
-}
-
+# ── main ──
 main() {
     [ $# -ge 1 ] || usage
+    local dir=$1 limit=${2:-3}
+    [ -x "$PY" ] || die "缺少 venv: $PY"
+
     load_env
-    resolve
-    local cmd=$1
-    shift
-    case "$cmd" in
-        onnx-vs-rknn)       cmd_onnx_vs_rknn "$@" ;;
-        embed-onnx-vs-rknn) cmd_embed_onnx_vs_rknn "$@" ;;
-        *)                  usage ;;
-    esac
+    mkdir -p "$OUTDIR"
+
+    local images failed=0
+    images=$(collect_images "$dir" "$limit")
+    [ -n "$images" ] || die "目录里没有图片: $dir"
+
+    while IFS= read -r image; do
+        run_one "$image" || failed=$((failed + 1))
+    done <<<"$images"
+
+    if [ "$failed" -ne 0 ]; then
+        echo "结果：$failed 张不一致"
+        exit 1
+    fi
+    echo "结果：全部一致"
 }
 
 main "$@"

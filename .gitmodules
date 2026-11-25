@@ -1,0 +1,4 @@
+[submodule "frontend"]
+	path = frontend
+	url = https://github.com/lovely-him/web-test-pages
+	branch = wine-cooler

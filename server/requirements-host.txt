@@ -1,0 +1,3 @@
+# 仅在宿主机需要（开发期推理后端）
+-r requirements.txt
+onnxruntime

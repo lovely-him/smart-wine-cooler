@@ -1,0 +1,16 @@
+[Unit]
+Description=Wine Cooler
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@RUN_USER@
+WorkingDirectory=@RUN_DIR@
+EnvironmentFile=-@RUN_DIR@/.env
+ExecStart=@PYTHON@ -m @MODULE@
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

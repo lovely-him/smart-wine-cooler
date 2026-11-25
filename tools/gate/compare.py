@@ -1,112 +1,116 @@
-"""比对两份 detect_json.py 产物，给出精度门禁结论。
+"""比对两次检测结果：框数、逐个 IoU、分数差。
 
-硬门槛（决定通过/不通过）：
-  1. 每张图检测数量一致
-  2. 类别集合一致（当前只检 bottle，等价于数量一致）
-
-软指标（只记录，不判失败）：
-  3. 按中心点顺序配对后的 IoU 最小值/均值
-  4. 分数差的最大值与均值
-  5. 两侧推理耗时
-
-用法:
-    python compare.py --ref host.json --test board.json [--iou-min 0.7] [--strict]
+两个后端跑同一张图，结果应当几乎重合；差得多的位置说明解码或预处理有分支，
+不是量化误差。
 """
 
 import argparse
 import json
 import sys
 
-# ── 路径与常量 ──
-
-
-# ── 函数 ──
-def load(path):
-    with open(path, encoding="utf-8") as fp:
-        data = json.load(fp)
-    return {item["file"]: item for item in data["images"]}, data
+DEF_MIN_IOU = 0.90
+DEF_MAX_SCORE = 0.05
+DEF_MIN_COS = 0.98
 
 
 def iou(a, b):
-    x1 = max(a[0], b[0])
-    y1 = max(a[1], b[1])
-    x2 = min(a[2], b[2])
-    y2 = min(a[3], b[3])
-    inter = max(0.0, x2 - x1) * max(0.0, y2 - y1)
-    area_a = max(0.0, a[2] - a[0]) * max(0.0, a[3] - a[1])
-    area_b = max(0.0, b[2] - b[0]) * max(0.0, b[3] - b[1])
-    union = area_a + area_b - inter
-    return inter / union if union > 0 else 0.0
+    ax1, ay1, ax2, ay2 = a
+    bx1, by1, bx2, by2 = b
+    inter_w = min(ax2, bx2) - max(ax1, bx1)
+    inter_h = min(ay2, by2) - max(ay1, by1)
+    if inter_w <= 0 or inter_h <= 0:
+        return 0.0
+    inter = inter_w * inter_h
+    area_a = (ax2 - ax1) * (ay2 - ay1)
+    area_b = (bx2 - bx1) * (by2 - by1)
+    return inter / (area_a + area_b - inter + 1e-9)
+
+
+def match(left, right):
+    """按分数从高到低贪心配对，返回 (配对, 左边多出来的, 右边多出来的)。"""
+    remaining = list(range(len(right)))
+    pairs = []
+    used = set()
+    for item in sorted(left, key=lambda d: -d["score"]):
+        if not remaining:
+            break
+        best = max(remaining, key=lambda idx: iou(item["box"], right[idx]["box"]))
+        score = iou(item["box"], right[best]["box"])
+        if score <= 0:
+            continue
+        pairs.append((item, right[best], score))
+        used.add(item["id"])
+        remaining.remove(best)
+    unmatched_left = [item for item in left if item["id"] not in used]
+    unmatched_right = [right[idx] for idx in remaining]
+    return pairs, unmatched_left, unmatched_right
+
+
+def compare_vectors(left, right, min_cos):
+    a = left["vector"]
+    b = right["vector"]
+    if len(a) != len(b):
+        print(f"FAIL 维度不一致 {len(a)} vs {len(b)}")
+        return 1
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = sum(x * x for x in a) ** 0.5
+    norm_b = sum(y * y for y in b) ** 0.5
+    cosine = dot / (norm_a * norm_b + 1e-12)
+    print(f"{left['backend']}: {len(a)} 维   {right['backend']}: {len(b)} 维")
+    print(f"  余弦相似度 {cosine:.6f}")
+    if cosine < min_cos:
+        print(f"FAIL 余弦 {cosine:.6f} < {min_cos}")
+        return 1
+    print(f"PASS 余弦 {cosine:.6f}")
+    return 0
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--ref", required=True, help="基线结果（通常是宿主 onnx）")
-    parser.add_argument("--test", required=True, help="待验证结果（通常是板端 rknn）")
-    parser.add_argument("--iou-min", type=float, default=0.7, help="软指标提示线")
-    parser.add_argument("--strict", action="store_true", help="软指标也纳入判定")
+    parser = argparse.ArgumentParser(description="比对两个后端的推理结果")
+    parser.add_argument("left")
+    parser.add_argument("right")
+    parser.add_argument("--min-iou", type=float, default=DEF_MIN_IOU)
+    parser.add_argument("--max-score", type=float, default=DEF_MAX_SCORE)
+    parser.add_argument("--min-cos", type=float, default=DEF_MIN_COS)
     args = parser.parse_args()
 
-    ref, ref_meta = load(args.ref)
-    test, test_meta = load(args.test)
+    with open(args.left, encoding="utf-8") as fp:
+        left = json.load(fp)
+    with open(args.right, encoding="utf-8") as fp:
+        right = json.load(fp)
 
-    print(f"基线 {ref_meta['backend']:5s} {ref_meta['model']}")
-    print(f"待验 {test_meta['backend']:5s} {test_meta['model']}\n")
+    if "vector" in left:
+        return compare_vectors(left, right, args.min_cos)
 
-    only_ref = sorted(set(ref) - set(test))
-    only_test = sorted(set(test) - set(ref))
-    if only_ref or only_test:
-        print(f"[FAIL] 图片集合不一致: 仅基线 {only_ref} / 仅待验 {only_test}")
+    a = [dict(item, id=idx) for idx, item in enumerate(left["detections"])]
+    b = [dict(item, id=idx) for idx, item in enumerate(right["detections"])]
+    print(f"{left['backend']}: {len(a)} 个框   {right['backend']}: {len(b)} 个框")
+
+    if len(a) != len(b):
+        print("FAIL 框数不一致")
+        return 1
+    if not a:
+        print("PASS 两边都是 0 个框")
+        return 0
+
+    pairs, only_left, only_right = match(a, b)
+    if only_left or only_right:
+        print(f"FAIL 有 {len(only_left) + len(only_right)} 个框没配上")
         return 1
 
-    print(f"{'文件':24s} {'基线':>4s} {'待验':>4s} {'配对数':>6s} {'IoU最小':>8s} {'分数差':>7s}")
-    count_fail = []
-    ious, diffs = [], []
+    worst_iou = min(pair[2] for pair in pairs)
+    worst_score = max(abs(pair[0]["score"] - pair[1]["score"]) for pair in pairs)
+    for item, other, score in pairs:
+        print(f"  IoU {score:.5f}   分数 {item['score']:.4f} / {other['score']:.4f}")
 
-    for name in sorted(ref):
-        left = ref[name]["detections"]
-        right = test[name]["detections"]
-        if len(left) != len(right):
-            count_fail.append((name, len(left), len(right)))
-            print(f"{name[-24:]:24s} {len(left):4d} {len(right):4d}  数量不一致")
-            continue
-
-        pairs = []
-        for det in left:
-            best = max(range(len(right)), key=lambda i: iou(det["box"], right[i]["box"]), default=None)
-            if best is not None and best not in [p[0] for p in pairs]:
-                pairs.append((best, det))
-
-        local_iou = [iou(det["box"], right[i]["box"]) for i, det in pairs]
-        local_diff = [abs(det["score"] - right[i]["score"]) for i, det in pairs]
-        ious.extend(local_iou)
-        diffs.extend(local_diff)
-
-        lo = f"{min(local_iou):.3f}" if local_iou else "-"
-        df = f"{max(local_diff):.3f}" if local_diff else "-"
-        print(f"{name[-24:]:24s} {len(left):4d} {len(right):4d} {len(pairs):6d} {lo:>8s} {df:>7s}")
-
-    ref_ms = sum(i["infer_ms"] for i in ref_meta["images"]) / len(ref_meta["images"])
-    test_ms = sum(i["infer_ms"] for i in test_meta["images"]) / len(test_meta["images"])
-    print(f"\n推理耗时: 基线 {ref_ms:.1f}ms / 待验 {test_ms:.1f}ms")
-
-    if ious:
-        print(f"IoU: 最小 {min(ious):.3f} 均值 {sum(ious) / len(ious):.3f}")
-    if diffs:
-        print(f"分数差: 最大 {max(diffs):.3f} 均值 {sum(diffs) / len(diffs):.3f}")
-
-    soft_fail = []
-    if ious and min(ious) < args.iou_min:
-        soft_fail.append(f"IoU 最小值 {min(ious):.3f} < {args.iou_min}")
-
-    if count_fail:
-        print(f"\n[FAIL] 数量不一致 {len(count_fail)} 张: {[c[0][-12:] for c in count_fail]}")
+    if worst_iou < args.min_iou:
+        print(f"FAIL 最小 IoU {worst_iou:.5f} < {args.min_iou}")
         return 1
-    if args.strict and soft_fail:
-        print(f"\n[FAIL] 软指标未达标: {'; '.join(soft_fail)}")
+    if worst_score > args.max_score:
+        print(f"FAIL 最大分数差 {worst_score:.4f} > {args.max_score}")
         return 1
 
-    print("\n[ OK ] 硬门槛通过：每图数量一致" + (f"（软指标提示: {'; '.join(soft_fail)}）" if soft_fail else ""))
+    print(f"PASS 最小 IoU {worst_iou:.5f}，最大分数差 {worst_score:.4f}")
     return 0
 
 

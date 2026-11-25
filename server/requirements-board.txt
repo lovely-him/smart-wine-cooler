@@ -1,0 +1,4 @@
+# 仅在板子需要（NPU 推理后端）
+# rknn-toolkit-lite2 通常由厂商镜像预装，装不上时不要强装，先用镜像自带的
+-r requirements.txt
+rknn-toolkit-lite2
