@@ -27,7 +27,8 @@ def reopen(tmp_path):
 def test_defaults_available(db):
     store = ConfigStore(db)
     assert store.get("judge.conf") == DEFAULTS["judge.conf"]
-    assert store.get("cam.rotate") == DEFAULTS["cam.rotate"]
+    assert store.get("cam.cameras") == DEFAULTS["cam.cameras"]
+    assert store.get("cam.layers") == DEFAULTS["cam.layers"]
 
 
 def test_change_survives_reopen(tmp_path, db):
@@ -46,7 +47,7 @@ def test_change_reported_by_effect(db):
     _, _, need_device = store.set_many("sys", {"sys.autostart": False})
     assert need_device == ["sys.autostart"]
 
-    _, need_service, _ = store.set_many("cam", {"cam.width": 1920})
+    _, need_service, _ = store.set_many("cam", {"cam.batch": 8})
     assert need_service == []
 
 
@@ -100,7 +101,7 @@ def test_unknown_key_rejected(db):
     with pytest.raises(KeyError):
         store.set_many("judge", {"judge.nope": 1})
     with pytest.raises(KeyError):
-        store.set_many("judge", {"cam.width": 640})
+        store.set_many("judge", {"cam.batch": 8})
 
 
 def test_select_rejects_out_of_range(db):
@@ -209,7 +210,7 @@ def test_passcode_stored_as_salted_digest(db):
     assert not store.check_passcode("1234")
 
 
-def test_plaintext_passcode_is_migrated(db):
+def test_plaintext_passcode_is_never_accepted(db):
     def seed(conn):
         conn.execute(
             "INSERT INTO setting(key, value, updated_at) VALUES('sec.passcode', ?, '')",
@@ -219,9 +220,10 @@ def test_plaintext_passcode_is_migrated(db):
     db.write(seed)
 
     store = ConfigStore(db)
-    assert store.check_passcode("1234")
+    assert not store.check_passcode("1234")
     store.set_many("sec", {"sec.passcode": "1234", "sec.passcode_hint": "门牌号"})
     assert store.get("sec.passcode").startswith("sha256$")
+    assert store.check_passcode("1234")
 
 
 def test_export_drops_sensitive_settings(db, tmp_path):

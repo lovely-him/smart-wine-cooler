@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # 用法: tools/check/check.sh <子命令>
 #   quick    语法与导入自检（秒级，改完就绪跑这个）
+#   docs     文档自检（配置编号对账、功能编号与跨页引用；改 wiki 就跑）
 #   unit     单元测试（server/tests 存在时才真跑）
-#   all      quick + unit
+#   all      quick + docs + unit
 #
 # 用仓库根的 .venv，可用 PY=... 覆盖
 # 退出码: 0 通过 / 1 不通过 / 2 环境或参数问题
@@ -14,6 +15,7 @@ ROOT=$(cd "$HERE/../.." && pwd)
 PY=${PY:-$ROOT/.venv/bin/python}
 PKG=$ROOT/server
 TESTS=$PKG/tests
+DOCS=$HERE/lib/docs_links.py
 
 # ── 函数 ──
 usage() {
@@ -58,6 +60,12 @@ EOF
     log "通过"
 }
 
+cmd_docs() {
+    require_python
+    log "文档编号与引用"
+    "$PY" "$DOCS" "$ROOT" || die "文档自检不通过（规则见 docs/smart-wine-cooler-wiki/00-文档规范.md）"
+}
+
 cmd_unit() {
     require_python
     if [ ! -d "$TESTS" ]; then
@@ -75,8 +83,9 @@ main() {
 
     case $sub in
         quick)   cmd_quick ;;
+        docs)    cmd_docs ;;
         unit)    cmd_unit ;;
-        all)     cmd_quick; cmd_unit ;;
+        all)     cmd_quick; cmd_docs; cmd_unit ;;
         help | -h | --help) usage ;;
         *)       die "未知子命令: $sub（用 --help 看用法）" ;;
     esac

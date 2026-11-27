@@ -59,7 +59,13 @@ class Scheduler(threading.Thread):
             event = self.door.poll()
             if event is not None:
                 self.runtime.sync_light()
-                self.runtime.bus.publish("door.change", {"door": self.runtime.door_state()})
+                self.runtime.bus.publish(
+                    "door.change",
+                    {
+                        "door": self.runtime.live_door(),
+                        "doorLevel": self.runtime.door_level(),
+                    },
+                )
             if event == OPENED:
                 self._cancel.set()
             elif event == CLOSED:
@@ -67,11 +73,19 @@ class Scheduler(threading.Thread):
                 self.runtime.start_observe("door")
 
         if not self.runtime.is_observing() and self._timer_due():
-            self.runtime.start_observe("timer")
+            if blocked_reason(self.runtime) is None:
+                self.runtime.start_observe("timer")
 
 
 def manual_allowed(runtime):
     return bool(runtime.config.get("trig.manual_enabled"))
+
+
+def blocked_reason(runtime):
+    """现在为什么不能开始一次观察；能开始返回 None。"""
+    if runtime.door_state() == "open":
+        return "门打开着，等关上再观察"
+    return None
 
 
 def wait_idle(runtime, timeout=3600.0):

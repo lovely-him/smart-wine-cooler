@@ -62,10 +62,10 @@ def observe(camera, detector, classifier, cfg):
     if captured["status"] != "ok":
         return LayerOutcome(
             status="failed",
-            frames=len(captured["frames"]),
+            frames=captured["frames"],
             elapsed=elapsed,
             reasons=captured["reasons"],
-            frame=captured["frames"][-1] if captured["frames"] else None,
+            frame=captured["last"],
         )
 
     frame = captured["anchor"]
@@ -91,7 +91,7 @@ def observe(camera, detector, classifier, cfg):
 
     return LayerOutcome(
         status="ok",
-        frames=len(captured["frames"]),
+        frames=captured["frames"],
         elapsed=elapsed,
         frame=frame,
         entities=entities,

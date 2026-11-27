@@ -98,6 +98,7 @@ class ChangeRecord(Model):
 
 class CameraStatus(Model):
     id: str
+    label: str = ""
     available: bool
     layers: list[str] = []
 
@@ -110,11 +111,13 @@ class LiveStatus(Model):
     storage_total_bytes: int | None = None
     observing: bool = False
     scan_started_at: datetime | None = None
+    scan_trigger: str | None = None
     last_observation_id: int | None = None
     now: datetime | None = None
     ip: str | None = None
     storage_low: bool = False
-    uptime_seconds: int | None = None
+    service_uptime_seconds: int | None = None
+    host_uptime_seconds: int | None = None
     door: DoorState | None = None
     door_level: Literal["low", "high"] | None = None
     light: Literal["on", "off", "unknown"] = "unknown"

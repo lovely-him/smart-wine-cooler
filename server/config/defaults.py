@@ -34,18 +34,22 @@ SETTINGS: tuple[SettingDef, ...] = (
     SettingDef("net.hostname", "net", "text", "wine-cooler", label="名字"),
     # ── CAM 采集 ──
     SettingDef(
-        "cam.layers", "cam", "layers", layer_config.default_json(), danger=True, label="层与摄像头"
-    ),
-    SettingDef("cam.width", "cam", "number", 1280, label="画面宽"),
-    SettingDef("cam.height", "cam", "number", 720, label="画面高"),
-    SettingDef(
-        "cam.rotate",
+        "cam.cameras",
         "cam",
-        "select",
-        "90",
-        choices=("0", "90", "180", "270"),
-        label="画面朝向",
+        "cameras",
+        layer_config.default_cameras_json(),
+        danger=True,
+        label="摄像头",
     ),
+    SettingDef(
+        "cam.layers",
+        "cam",
+        "layers",
+        layer_config.default_layers_json(),
+        danger=True,
+        label="柜层",
+    ),
+    SettingDef("cam.warmup", "cam", "number", 0, label="开拍前等几秒"),
     SettingDef("cam.batch", "cam", "number", 10, label="一次抓几帧"),
     SettingDef("cam.skip", "cam", "number", 4, label="丢弃开头几帧"),
     # ── TRIG 触发 ──
@@ -85,7 +89,6 @@ SETTINGS: tuple[SettingDef, ...] = (
     SettingDef("judge.min_bright", "judge", "number", 15, label="最暗亮度"),
     SettingDef("judge.max_bright", "judge", "number", 245, label="最亮亮度"),
     SettingDef("judge.min_sharp", "judge", "number", 20, label="最低清晰度"),
-    SettingDef("judge.max_frames", "judge", "number", 30, label="最多抓几帧"),
     SettingDef("judge.settle_timeout", "judge", "number", 10, label="等静止最长秒数"),
     # ── AI 大模型 ──
     SettingDef("ai.enabled", "ai", "switch", False, label="启用"),
@@ -132,10 +135,10 @@ class SettingItemDef:
 ITEMS: tuple[SettingItemDef, ...] = (
     SettingItemDef("NET-01", "net", "当前网络", ()),
     SettingItemDef("NET-02", "net", "本机名称", ("net.hostname",)),
-    SettingItemDef("CAM-01", "cam", "层与摄像头", ("cam.layers",)),
-    SettingItemDef("CAM-02", "cam", "采集分辨率", ("cam.width", "cam.height")),
-    SettingItemDef("CAM-03", "cam", "画面朝向", ("cam.rotate",)),
-    SettingItemDef("CAM-04", "cam", "抓几帧、丢开头几帧", ("cam.batch", "cam.skip")),
+    SettingItemDef("CAM-01", "cam", "摄像头", ("cam.cameras",)),
+    SettingItemDef("CAM-02", "cam", "柜层", ("cam.layers",)),
+    SettingItemDef("CAM-03", "cam", "开拍前等待", ("cam.warmup",)),
+    SettingItemDef("CAM-04", "cam", "采集节奏", ("cam.batch", "cam.skip")),
     SettingItemDef("TRIG-01", "trig", "门磁 / 按键触发", ("trig.door_enabled",)),
     SettingItemDef(
         "TRIG-02",
@@ -163,7 +166,6 @@ ITEMS: tuple[SettingItemDef, ...] = (
             "judge.min_bright",
             "judge.max_bright",
             "judge.min_sharp",
-            "judge.max_frames",
             "judge.settle_timeout",
         ),
     ),

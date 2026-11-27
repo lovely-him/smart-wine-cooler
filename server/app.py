@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from server.api.preview import build_preview_router
 from server.api.routes import build_router
 from server.config import bootstrap
 from server.hardware.door import load_door
@@ -47,6 +48,7 @@ def create_app(runtime=None, start_scheduler=True):
     app = FastAPI(title="wine-cooler")
     app.state.runtime = rt
     app.include_router(build_router(rt))
+    app.include_router(build_preview_router(rt))
 
     if start_scheduler:
         door = build_door(rt.config)

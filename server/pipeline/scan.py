@@ -6,10 +6,13 @@
 
 from datetime import datetime
 from pathlib import Path
+import time
 
 from server.db import checkpoints, repo
 from server.hardware import factory
 from server.pipeline.observe import observe
+
+WARMUP_SLICE = 0.2
 
 
 def now():
@@ -55,11 +58,23 @@ def _tally(layers):
     return result
 
 
-def _flatten(tally):
+def _counts(layer):
+    """核对状态里存的是驼峰 entities，观察统计是 counts，两种形状都要能算。"""
+    if "counts" in layer:
+        return layer["counts"]
+    tally = {}
+    for entity in layer.get("entities") or []:
+        key = entity.get("categoryId")
+        tally[key] = tally.get(key, 0) + 1
+    return [{"category_id": key, "count": count} for key, count in tally.items()]
+
+
+def _flatten(layers):
     flat = {}
-    for layer in tally:
-        for item in layer.get("counts", []):
-            flat[(layer["layer_id"], item["category_id"])] = item["count"]
+    for layer in layers:
+        layer_id = layer.get("layer_id") or layer.get("layerId")
+        for item in _counts(layer):
+            flat[(layer_id, item["category_id"])] = item["count"]
     return flat
 
 
@@ -90,6 +105,22 @@ def _refuse_full_disk(runtime, trigger, started):
         return None
 
 
+def _wait_light(runtime, cancel):
+    """开流前等柜内光照稳定。
+
+    切片睡是为了能中途醒来看门：门一开就代表柜内又被人改动，等完了拍到的也不是关门时的样子。
+    返回是否等满。
+    """
+    deadline = time.monotonic() + runtime.warmup_seconds
+    while True:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            return True
+        if cancel is not None and cancel():
+            return False
+        time.sleep(min(left, WARMUP_SLICE))
+
+
 def run_scan(runtime, trigger, cancel=None):
     """跑一次整柜观察。返回 (observation_id, status)。"""
     started = now()
@@ -97,6 +128,16 @@ def run_scan(runtime, trigger, cancel=None):
         runtime.reclaim_space()
     if runtime.storage_low():
         return _refuse_full_disk(runtime, trigger, started), "void"
+    if not _wait_light(runtime, cancel):
+        obs_id = repo.save_observation(
+            runtime.db,
+            status="void",
+            trigger=trigger,
+            started_at=started,
+            finished_at=now(),
+            void_reason="门被打开，这次不算",
+        )
+        return obs_id, "void"
     outcomes = []
     failure = None
 
@@ -105,11 +146,13 @@ def run_scan(runtime, trigger, cancel=None):
             failure = (layer, None, "门被打开，这次不算")
             break
         try:
-            camera = factory.load_camera(layer, runtime.camera_cfg)
+            camera = factory.load_camera(runtime.camera_of(layer), runtime.grab_cfg)
         except Exception as exc:
             failure = (layer, None, f"打不开采集源: {exc}")
             break
-        outcome = observe(camera, runtime.detector, runtime.classifier, runtime.stability_cfg)
+        outcome = observe(
+            camera, runtime.detector, runtime.classifier, runtime.stability_cfg(layer)
+        )
         if outcome.status != "ok":
             failure = (layer, outcome, "；".join(outcome.reasons))
             break

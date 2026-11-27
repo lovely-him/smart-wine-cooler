@@ -4,12 +4,15 @@
 才认为现场已经静止。够了就取窗口**中点**那一帧——窗口头部可能还在曝光收敛，
 尾部可能已经接近下一次变化。
 
-超时未静止就判失败，绝不靠多等一会儿凑出一个结果。
+超时未静止就判失败，绝不靠多等一会儿凑出一个结果。有没有超时只看
+deadline（`settle_timeout`），不看抓了多少帧：帧数和秒的换算取决于帧率，
+同一个数字在不同摄像头上完全不是一回事。
 """
 
 import time
+from collections import deque
 
-from . import quality
+from . import lens, quality
 
 DEFAULTS = {
     "stable_frames": 3,
@@ -18,10 +21,14 @@ DEFAULTS = {
     "min_bright": 15.0,
     "max_bright": 245.0,
     "min_sharp": 20.0,
-    "max_frames": 30,
     "settle_timeout": 10.0,
     "grab_batch": 10,
     "rotate": 0,
+    "fov": 0.0,
+    "k1": 0.0,
+    "k2": 0.0,
+    "k3": 0.0,
+    "k4": 0.0,
 }
 
 
@@ -60,13 +67,6 @@ class Stabilizer:
                 return (idx, idx + run)
         return None
 
-    def window(self):
-        return self._window()
-
-    def anchor_index(self):
-        span = self._window()
-        return (span[0] + span[1] - 1) // 2 if span else None
-
     def reasons(self):
         if not self.samples:
             return ["没有帧"]
@@ -84,36 +84,38 @@ class Stabilizer:
 def collect(camera, cfg):
     """抓帧到稳定窗达成或超时。
 
-    返回 status(ok/timeout) 与 anchor（达标时那一帧），失败时带 reasons。
+    返回 status(ok/timeout)；达标时带 anchor（那一帧）与已抓帧数，失败时带最后一帧与 reasons。
+
+    只留最近 `stable_frames` 帧：稳定窗一旦达成，中点就在这几帧里。全留着的话，
+    10 秒的限额在高帧率摄像头上能攒下上千张图，整台设备会被吃光内存。
+
+    几何纠正（去畸变、旋转）只对交出去的那一帧做：它是确定的变换，
+    不改变「画面稳不稳」的判断，没必要每帧都算。
     """
     cfg = {**DEFAULTS, **cfg}
     stab = Stabilizer(cfg)
-    max_frames = int(cfg["max_frames"])
     batch = max(1, int(cfg["grab_batch"]))
-    rotate = int(cfg["rotate"] or 0)
     deadline = time.monotonic() + float(cfg["settle_timeout"])
-    frames = []
+    recent = deque(maxlen=stab.stable_frames)
+    grabbed = 0
 
-    while len(frames) < max_frames:
-        if time.monotonic() > deadline:
-            return {"status": "timeout", "frames": frames, "reasons": stab.reasons()}
-        want = min(batch, max_frames - len(frames))
-        for img in camera.grab(want):
-            if rotate:
-                img = img.rotate(rotate, expand=True)
-            frames.append(img)
+    while time.monotonic() <= deadline:
+        for img in camera.grab(batch):
+            grabbed += 1
+            recent.append(img)
             if stab.push(img) == "stable":
                 return {
                     "status": "ok",
-                    "frames": frames,
-                    "anchor": frames[stab.anchor_index()],
+                    "frames": grabbed,
+                    "anchor": lens.fix(recent[(stab.stable_frames - 1) // 2], cfg),
                     "metrics": stab.samples,
                 }
 
     return {
         "status": "timeout",
-        "frames": frames,
-        "reasons": ["达到最大帧数仍未静止"] + stab.reasons(),
+        "frames": grabbed,
+        "last": lens.fix(recent[-1], cfg) if recent else None,
+        "reasons": ["等到时间上限仍未静止"] + stab.reasons(),
     }
 
 

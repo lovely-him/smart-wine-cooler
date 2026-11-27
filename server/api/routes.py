@@ -48,6 +48,13 @@ IMAGE_ROOT = "/img"
 REFERENCE_ROOT = "/ref"
 
 
+def _rel(path):
+    """前端拿到的图片地址带 IMAGE_ROOT 前缀，磁盘上是相对 image_dir 的路径。"""
+    if path and path.startswith(f"{IMAGE_ROOT}/"):
+        return path[len(IMAGE_ROOT) + 1 :]
+    return path or ""
+
+
 def _entity(row):
     return {
         "id": row["id"],
@@ -95,9 +102,7 @@ def _checkpoint(runtime, checkpoint):
 
 
 def _stored_layer(runtime, layer):
-    path = layer.get("imageUrl") or ""
-    if path.startswith(f"{IMAGE_ROOT}/"):
-        path = path[len(IMAGE_ROOT) + 1 :]
+    path = _rel(layer.get("imageUrl"))
     if path and not (runtime.image_dir / path).is_file():
         path = ""
     return {
@@ -108,9 +113,7 @@ def _stored_layer(runtime, layer):
 
 
 def _stored_entity(runtime, entity):
-    crop = entity.get("cropUrl") or ""
-    if crop.startswith(f"{IMAGE_ROOT}/"):
-        crop = crop[len(IMAGE_ROOT) + 1 :]
+    crop = _rel(entity.get("cropUrl"))
     if crop and not (runtime.image_dir / crop).is_file():
         crop = ""
     return {**entity, "cropUrl": f"{IMAGE_ROOT}/{crop}" if crop else None}
@@ -228,6 +231,9 @@ def build_router(runtime):
     def trigger():
         if not scheduler.manual_allowed(runtime):
             raise HTTPException(status_code=403, detail="人工触发已关闭")
+        reason = scheduler.blocked_reason(runtime)
+        if reason:
+            raise HTTPException(status_code=409, detail=reason)
         if not runtime.start_observe("manual"):
             raise HTTPException(status_code=409, detail="已经在观察中")
         return {"accepted": True}
@@ -313,7 +319,9 @@ def build_router(runtime):
     @router.post("/api/categories/suggest", response_model=SuggestResponse)
     def suggest_for_category(body: SuggestRequest):
         """AI 补全：只出建议，不写库。"""
-        return runtime.suggest_category(body.category_id, body.name, body.details, body.crop_url)
+        return runtime.suggest_category(
+            body.category_id, body.name, body.details, _rel(body.crop_url)
+        )
 
     @router.post("/api/categories")
     def create_category(body: CategoryInput):

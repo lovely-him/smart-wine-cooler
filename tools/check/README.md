@@ -10,6 +10,7 @@
 | 场景 | 跑什么 |
 | --- | --- |
 | 改完代码，想确认没写错 | `./tools/check/check.sh quick` |
+| 改完 wiki 文档 | `./tools/check/check.sh docs` |
 | 提交前 | `./tools/check/check.sh all` |
 | 部署到板子之后 | `./tools/deploy/deploy.sh status` + 界面看一眼 |
 

@@ -10,6 +10,7 @@ import json
 import secrets
 from datetime import datetime
 
+from . import layers as layer_config
 from .defaults import (
     BY_KEY,
     DEFAULTS,
@@ -37,12 +38,9 @@ def encode_passcode(passcode):
 
 
 def passcode_matches(stored, given):
-    """旧版明文口令直接比对一次，下次写入时自动转成摘要。"""
     stored = str(stored or "")
-    if not stored:
+    if not stored or not stored.startswith(HASH_PREFIX):
         return False
-    if not stored.startswith(HASH_PREFIX):
-        return hmac.compare_digest(stored, str(given or ""))
     _, salt, digest = stored.split("$", 2)
     return hmac.compare_digest(_digest(str(given or ""), salt), digest)
 
@@ -205,8 +203,7 @@ class ConfigStore:
             old = current.get(key)
             if key == "sec.passcode" and raw != MASK:
                 plain = str(value or "")
-                legacy = bool(old) and not str(old).startswith(HASH_PREFIX)
-                if plain and passcode_matches(old, plain) and not legacy:
+                if plain and passcode_matches(old, plain):
                     continue
                 value = encode_passcode(plain)
             if value == old:
@@ -223,6 +220,12 @@ class ConfigStore:
 
         if not entries:
             return changed, need_service, need_device
+
+        if group == "cam":
+            merged = dict(current)
+            for key, _, _, value in entries:
+                merged[key] = value
+            layer_config.validate(merged.get("cam.cameras"), merged.get("cam.layers"))
 
         def _write(conn):
             stamp = _now()

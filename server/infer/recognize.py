@@ -20,13 +20,12 @@ logger = logging.getLogger(__name__)
 TIMEOUT = 300
 JPEG_QUALITY = 88
 JSON_BLOCK = re.compile(r"\{.*\}", re.S)
-ASKABLE_KEYS = tuple(item.key for item in ASKABLE)
 WEB_SEARCH = {"type": "deepseek_web_search", "name": "deepseek_web_search"}
 
 
-def build_prompt(known, targets):
+def build_prompt(known, targets, labels=None):
     """提示词由表单生成：已填的当锚点，只问空着的那几个字段。"""
-    labels = {item.key: item.label for item in ASKABLE}
+    names = labels or {item.key: item.label for item in ASKABLE}
     lines = [
         "这是一个商品（可能是酒或饮料）的图片，可能有多张：第一张是柜内实际拍到的这一件，"
         "其余是同一类别的历史参考图。请把它当成一次商品资料调研。",
@@ -35,11 +34,11 @@ def build_prompt(known, targets):
     anchor = {key: value for key, value in (known or {}).items() if str(value).strip()}
     if anchor:
         lines.append("已知信息（人已经确认过，**以此为准，不要改**）：")
-        lines.extend(f"- {labels.get(key, key)}：{value}" for key, value in anchor.items())
+        lines.extend(f"- {names.get(key, key)}：{value}" for key, value in anchor.items())
     else:
         lines.append("没有任何已知信息，请先根据图片判断这是什么。")
     lines += ["", "需要你补全的字段（**只回答这些**）："]
-    lines.extend(f"- {key}（{labels.get(key, key)}）" for key in targets)
+    lines.extend(f"- {key}（{names.get(key, key)}）" for key in targets)
     lines += [
         "",
         "怎么作答：",
@@ -148,7 +147,7 @@ class Recognizer:
     def _headers(self):
         return {"Authorization": f"Bearer {self.key}"}
 
-    def suggest(self, images, known, targets, deep=False):
+    def suggest(self, images, known, targets, deep=False, labels=None):
         if not self.available():
             return {**empty_result(), "error": "未配置大模型"}
 
@@ -156,7 +155,7 @@ class Recognizer:
 
         session = requests.Session()
         try:
-            content = [{"type": "text", "text": build_prompt(known, targets)}]
+            content = [{"type": "text", "text": build_prompt(known, targets, labels)}]
             for image in images:
                 content.append(
                     {
@@ -226,10 +225,10 @@ def from_config(config):
     return load_recognizer({key.split(".", 1)[1]: config.get(key) for key in CONFIG_KEYS})
 
 
-def call_suggest(recognizer, images, known, targets, deep=False, attempts=2):
+def call_suggest(recognizer, images, known, targets, deep=False, attempts=2, labels=None):
     last = None
     for _ in range(attempts):
-        last = recognizer.suggest(images, known, targets, deep)
+        last = recognizer.suggest(images, known, targets, deep, labels)
         if not last["error"]:
             return last
         time.sleep(1.0)

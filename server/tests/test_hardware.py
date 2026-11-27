@@ -85,27 +85,27 @@ def test_stable_scene_passes():
     result = stability.collect(camera, cfg())
     assert result["status"] == "ok"
     assert result["anchor"] is not None
-    assert len(result["frames"]) == cfg()["stable_frames"]
+    assert result["frames"] == cfg()["stable_frames"]
 
 
-def test_rotate_applies_to_every_frame():
+def test_rotate_applies_to_anchor():
     camera = FakeCamera([textured()] * 10)
     result = stability.collect(camera, cfg(rotate=90))
     assert result["status"] == "ok"
     assert result["anchor"].size == (240, 320)
-    assert all(frame.size == (240, 320) for frame in result["frames"])
 
 
 def test_dark_scene_times_out():
     camera = FakeCamera([solid(2)] * 10)
-    result = stability.collect(camera, cfg(max_frames=5, settle_timeout=0.01))
+    result = stability.collect(camera, cfg(settle_timeout=0.01))
     assert result["status"] == "timeout"
     assert any("亮度" in reason for reason in result["reasons"])
+    assert result["last"] is not None
 
 
 def test_blurry_scene_times_out():
     camera = FakeCamera([solid(128)] * 10)
-    result = stability.collect(camera, cfg(max_frames=5, settle_timeout=0.01))
+    result = stability.collect(camera, cfg(settle_timeout=0.01))
     assert result["status"] == "timeout"
     assert any("清晰度" in reason for reason in result["reasons"])
 
@@ -113,9 +113,29 @@ def test_blurry_scene_times_out():
 def test_moving_scene_times_out():
     frames = [noisy(seed) for seed in range(12)]
     camera = FakeCamera(frames)
-    result = stability.collect(camera, cfg(max_frames=6, settle_timeout=0.01))
+    result = stability.collect(camera, cfg(settle_timeout=0.01))
     assert result["status"] == "timeout"
     assert any("帧间差异" in reason for reason in result["reasons"])
+
+
+def test_timeout_only_counts_seconds():
+    """没有帧数上限：拖得够久就能超过旧的 30 帧硬上限。"""
+    counter = {"n": 0}
+
+    class Endless:
+        def grab(self, count=None):
+            out = []
+            for _ in range(int(count or 1)):
+                out.append(noisy(counter["n"] % 1000, size=(64, 48)))
+                counter["n"] += 1
+            return out
+
+        def describe(self):
+            return "endless"
+
+    result = stability.collect(Endless(), cfg(settle_timeout=0.5, grab_batch=10))
+    assert result["status"] == "timeout"
+    assert result["frames"] > 30
 
 
 def test_anchor_is_middle_of_window():

@@ -53,27 +53,39 @@ def runtime(tmp_path):
 
     db = Database(tmp_path / "app.db")
     db.init_schema()
+    camera = SimpleNamespace(
+        id="cam-1",
+        label="摄像头 1",
+        backend="image_dir",
+        width=320,
+        height=240,
+        rotate=0,
+        directory=str(good),
+    )
     runtime = SimpleNamespace(
         db=db,
         image_dir=images,
         reference_dir=refs,
         config={"judge.ref_dedupe": 0.95, "judge.ref_cap": 12},
         classifier=StubClassifier(),
-        layers=[SimpleNamespace(id="layer1", name="第一层", backend="image_dir", device="", directory=str(good))],
-        camera_cfg={"width": 320, "height": 240, "skip": 0, "batch": 3},
-        stability_cfg={
-            "stable_frames": 3,
-            "max_frames": 6,
-            "settle_timeout": 0.5,
-            "grab_batch": 3,
-            "diff_thresh": 1.5,
-            "min_bright": 15,
-            "max_bright": 245,
-            "min_sharp": 20,
-        },
+        cameras=[camera],
+        layers=[SimpleNamespace(id="layer1", name="第一层", camera=camera.id)],
+        grab_cfg={"skip": 0, "batch": 3},
         detector=StubDetector(),
         storage_low=lambda: False,
+        warmup_seconds=0,
     )
+    runtime.camera_of = lambda layer: camera
+    runtime.stability_cfg = lambda layer: {
+        "stable_frames": 3,
+        "settle_timeout": 0.5,
+        "grab_batch": 3,
+        "diff_thresh": 1.5,
+        "min_bright": 15,
+        "max_bright": 245,
+        "min_sharp": 20,
+        "rotate": 0,
+    }
     runtime.reload_references = lambda: None
     yield runtime
     db.close()

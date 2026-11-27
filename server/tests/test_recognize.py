@@ -114,12 +114,19 @@ def test_parse_keeps_uncertain_notes():
 
 
 def test_targets_belong_to_form():
-    prompt = recognize.build_prompt({}, list(recognize.ASKABLE_KEYS))
-    for key in recognize.ASKABLE_KEYS:
+    keys = [item.key for item in ASKABLE]
+    prompt = recognize.build_prompt({}, keys)
+    for key in keys:
         assert key in prompt
-    assert "purchase" not in recognize.ASKABLE_KEYS
-    assert "note" not in recognize.ASKABLE_KEYS
-    assert set(recognize.ASKABLE_KEYS) <= FORM_KEYS
+    assert "purchase" not in keys
+    assert "note" not in keys
+    assert set(keys) <= FORM_KEYS
+
+
+def test_prompt_uses_labels_passed_in():
+    prompt = recognize.build_prompt({}, ["abc123"], {"abc123": "我的自定义栅"})
+    assert "我的自定义栅" in prompt
+    assert "abc123" in prompt
 
 
 def test_unconfigured_recognizer_is_none():

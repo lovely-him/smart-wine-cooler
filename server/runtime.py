@@ -34,7 +34,6 @@ STABILITY_KEYS = (
     "min_bright",
     "max_bright",
     "min_sharp",
-    "max_frames",
     "settle_timeout",
 )
 
@@ -55,6 +54,15 @@ def _local_ip():
         return None
     finally:
         sock.close()
+
+
+def _host_uptime():
+    """设备开机时长。服务重启不会让它归零，用它区分「设备重启」与「服务重启」。"""
+    try:
+        with open("/proc/uptime", encoding="ascii") as fp:
+            return int(float(fp.read().split()[0]))
+    except (OSError, ValueError, IndexError):
+        return None
 
 
 class Runtime:
@@ -80,7 +88,9 @@ class Runtime:
         self.door = None
         self._observe_lock = threading.Lock()
         self._observing = False
+        self._pending_trigger = None
         self._scan_started_at = None
+        self._scan_trigger = None
         self._rebuild_light()
 
         self.cancel_check = lambda: False
@@ -124,23 +134,46 @@ class Runtime:
 
     # ── 配置派生 ──
     @property
-    def layers(self):
-        return layer_config.parse(self.config.get("cam.layers"))
+    def cameras(self):
+        return layer_config.parse_cameras(self.config.get("cam.cameras"))
 
     @property
-    def camera_cfg(self):
+    def layers(self):
+        camera_ids = {camera.id for camera in self.cameras}
+        return layer_config.parse_layers(self.config.get("cam.layers"), camera_ids)
+
+    def camera_of(self, layer):
+        cameras = {camera.id: camera for camera in self.cameras}
+        camera = cameras.get(layer.camera)
+        if camera is None:
+            raise RuntimeError(f"层「{layer.name}」引用的摄像头不在配置里")
+        return camera
+
+    @property
+    def grab_cfg(self):
         return {
-            "width": int(self.config.get("cam.width")),
-            "height": int(self.config.get("cam.height")),
             "skip": int(self.config.get("cam.skip")),
             "batch": int(self.config.get("cam.batch")),
         }
 
     @property
-    def stability_cfg(self):
+    def warmup_seconds(self):
+        """开流前等柜内光照稳定的秒数。"""
+        return max(0.0, float(self.config.get("cam.warmup") or 0))
+
+    def stability_cfg(self, layer):
+        camera = self.camera_of(layer)
         cfg = {key: self.config.get(f"judge.{key}") for key in STABILITY_KEYS}
         cfg["grab_batch"] = int(self.config.get("cam.batch"))
-        cfg["rotate"] = int(self.config.get("cam.rotate") or 0)
+        cfg["rotate"] = camera.rotate
+        cfg["fov"] = camera.fov
+        cfg["k1"] = camera.k1
+        cfg["k2"] = camera.k2
+        cfg["k3"] = camera.k3
+        cfg["k4"] = camera.k4
+        cfg["pan_x"] = camera.pan_x
+        cfg["pan_y"] = camera.pan_y
+        cfg["zoom"] = camera.zoom
         return cfg
 
     # ── 观察 ──
@@ -158,6 +191,10 @@ class Runtime:
     def start_observe(self, trigger="manual"):
         """在后台线程跑一次观察，立即返回是否受理。"""
         if not self.claim_observe():
+            # 门关是权威边沿：柜内刚被动过，正在跑的那次已经作废，收尾后得补跑一次。
+            if trigger == "door":
+                with self._observe_lock:
+                    self._pending_trigger = trigger
             return False
         self.sync_light()
         threading.Thread(
@@ -182,9 +219,13 @@ class Runtime:
     def _run_observe(self, trigger):
         started = _now()
         self._scan_started_at = started
+        self._scan_trigger = trigger
         obs_id = None
         status = "void"
-        self.bus.publish("observe.start", {"trigger": trigger, "startedAt": started})
+        self.bus.publish(
+            "observe.start",
+            {"observing": True, "scanStartedAt": started, "scanTrigger": trigger},
+        )
         try:
             obs_id, status = run_scan(self, trigger, cancel=self.cancel_check)
             self._last_observation_id = obs_id
@@ -192,38 +233,52 @@ class Runtime:
             return {"observation_id": obs_id, "status": status}
         finally:
             self._scan_started_at = None
-            self._observing = False
+            self._scan_trigger = None
+            with self._observe_lock:
+                self._observing = False
+                pending = self._pending_trigger
+                self._pending_trigger = None
             self.sync_light()
             self.bus.publish("observe.done", {"observationId": obs_id, "status": status})
+            if pending:
+                self.start_observe(pending)
 
     # ── 实时状态 ──
     def live_status(self):
         cameras = []
-        for layer in self.layers:
+        for camera in self.cameras:
             try:
                 from server.hardware import factory
 
-                probe = factory.load_camera(layer, self.camera_cfg)
+                probe = factory.load_camera(camera, self.grab_cfg)
                 available = True
                 del probe
             except Exception:
                 available = False
-            cameras.append({"id": layer.id, "available": available, "layers": [layer.id]})
+            cameras.append(
+                {
+                    "id": camera.id,
+                    "label": camera.label,
+                    "available": available,
+                    "layers": [layer.id for layer in self.layers if layer.camera == camera.id],
+                }
+            )
 
         usage = storage.usage(self.image_dir)
-        door = self.door_state()
         return {
             "cameras": cameras,
             "storageFreeBytes": usage["free"],
             "storageTotalBytes": usage["total"],
             "observing": self._observing,
             "scanStartedAt": self._scan_started_at,
+            "scanTrigger": self._scan_trigger,
             "lastObservationId": self._last_observation_id,
-            "door": None if door == "unknown" else door,
+            "door": self.live_door(),
             "doorLevel": self.door_level(),
             "light": self.light_state(),
             "now": _now(),
-            "uptimeSeconds": int(time.time() - self.started_at),
+            "serviceUptimeSeconds": int(time.time() - self.started_at),
+            "hostUptimeSeconds": _host_uptime(),
             "ip": _local_ip(),
             "storageLow": self.storage_low(),
         }
@@ -274,16 +329,19 @@ class Runtime:
         from PIL import Image
 
         deep = bool(self.config.get("ai.deep"))
-        targets_all = recognize.ASKABLE_KEYS
+        defs = field_store.list_fields(self.db, category_id)
+        askable = [item for item in defs if item["askable"]]
+        keys = {item["key"] for item in askable}
         filled = {
             key: str(value).strip()
             for key, value in (details or {}).items()
-            if key in targets_all and str(value).strip()
+            if key in keys and str(value).strip()
         }
+        labels = {item["key"]: item["label"] for item in defs}
         known = dict(filled)
         if name:
             known = {"名称": name, **known}
-        targets = [key for key in targets_all if key not in filled]
+        targets = [item["key"] for item in askable if item["key"] not in filled]
 
         paths = []
         if crop_url:
@@ -325,7 +383,9 @@ class Runtime:
                 "startedAt": time.time(),
             }
         try:
-            result = recognize.call_suggest(self.recognizer, images, known, targets, deep)
+            result = recognize.call_suggest(
+                self.recognizer, images, known, targets, deep, labels=labels
+            )
         finally:
             with self._recognition_lock:
                 self._recognition = None
@@ -359,6 +419,11 @@ class Runtime:
         if controller is None:
             return "unknown"
         return controller.state()
+
+    def live_door(self):
+        """界面只认开/关；「未知」不显示成一个看起来正常的状态。"""
+        door = self.door_state()
+        return None if door == "unknown" else door
 
     def door_level(self):
         """当前电平。接线时靠它确认有没有接反。"""
