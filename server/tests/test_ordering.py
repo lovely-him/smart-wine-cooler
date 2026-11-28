@@ -1,6 +1,6 @@
 """层内次序：按框中心 x、再中心 y。位置是算出来的，这里验它算得对且可复现。"""
 
-from server import ordering
+from server.kernel import ordering
 
 
 def test_key_uses_center_x_first():

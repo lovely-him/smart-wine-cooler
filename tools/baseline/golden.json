@@ -1,0 +1,1401 @@
+[
+  {
+    "body": {
+      "categories": [],
+      "categoryAliases": {},
+      "changes": [],
+      "checkpoints": [],
+      "layers": [
+        {
+          "id": "layer1",
+          "name": "第一层"
+        }
+      ],
+      "live": {
+        "cameras": [
+          {
+            "available": "<volatile>",
+            "id": "/dev/v4l/by-id/usb-ALC-251223-CX_USB_Camera_01.00.00-video-index0",
+            "label": "摄像头 1",
+            "layers": [
+              "layer1"
+            ]
+          }
+        ],
+        "door": null,
+        "doorLevel": null,
+        "hostUptimeSeconds": "<volatile>",
+        "ip": "<volatile>",
+        "lastObservationId": null,
+        "light": "off",
+        "now": "<volatile>",
+        "observing": false,
+        "scanStartedAt": null,
+        "scanTrigger": null,
+        "serviceUptimeSeconds": "<volatile>",
+        "storageFreeBytes": "<volatile>",
+        "storageLow": "<volatile>",
+        "storageTotalBytes": "<volatile>"
+      },
+      "observations": [],
+      "sequence": 0
+    },
+    "case": "snapshot-empty",
+    "method": "GET",
+    "path": "/api/snapshot",
+    "status": 200
+  },
+  {
+    "body": {
+      "changes": [],
+      "checkpoints": [],
+      "nextBeforeId": null,
+      "observations": []
+    },
+    "case": "history-empty",
+    "method": "GET",
+    "path": "/api/history",
+    "status": 200
+  },
+  {
+    "body": {
+      "changes": [],
+      "checkpoints": [],
+      "nextBeforeId": null,
+      "observations": []
+    },
+    "case": "history-page",
+    "method": "GET",
+    "path": "/api/history?page=1&size=2",
+    "status": 200
+  },
+  {
+    "body": {
+      "items": [],
+      "next_before_id": null
+    },
+    "case": "observations",
+    "method": "GET",
+    "path": "/api/observations",
+    "status": 200
+  },
+  {
+    "body": {
+      "items": [],
+      "next_before_id": null
+    },
+    "case": "changes",
+    "method": "GET",
+    "path": "/api/changes",
+    "status": 200
+  },
+  {
+    "body": [
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 1,
+        "key": "brand",
+        "label": "品牌"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 2,
+        "key": "series",
+        "label": "系列"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 3,
+        "key": "barcode",
+        "label": "条码"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 4,
+        "key": "kind",
+        "label": "品类"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 5,
+        "key": "producer",
+        "label": "生产商"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 6,
+        "key": "country",
+        "label": "生产国"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 7,
+        "key": "region",
+        "label": "产区"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 8,
+        "key": "bottling",
+        "label": "灌装地"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 9,
+        "key": "vintage",
+        "label": "年份"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 10,
+        "key": "grape",
+        "label": "原料/品种"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 11,
+        "key": "abv",
+        "label": "酒精度"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 12,
+        "key": "volume",
+        "label": "容量"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 13,
+        "key": "sweetness",
+        "label": "甜度"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 14,
+        "key": "packaging",
+        "label": "包装形式"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 15,
+        "key": "drink_window",
+        "label": "适饮期"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 16,
+        "key": "storage",
+        "label": "储存条件"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 17,
+        "key": "after_opening",
+        "label": "开瓶后保存"
+      },
+      {
+        "askable": false,
+        "categoryId": null,
+        "id": 18,
+        "key": "purchase",
+        "label": "采购来源"
+      },
+      {
+        "askable": false,
+        "categoryId": null,
+        "id": 19,
+        "key": "note",
+        "label": "备注"
+      }
+    ],
+    "case": "fields",
+    "method": "GET",
+    "path": "/api/fields",
+    "status": 200
+  },
+  {
+    "body": {
+      "categoryId": null,
+      "elapsed": 0.0,
+      "running": false,
+      "step": ""
+    },
+    "case": "ai-status",
+    "method": "GET",
+    "path": "/api/ai/status",
+    "status": 200
+  },
+  {
+    "body": {
+      "items": []
+    },
+    "case": "logs",
+    "method": "GET",
+    "path": "/api/logs",
+    "status": 200
+  },
+  {
+    "body": {
+      "cameras": []
+    },
+    "case": "cameras",
+    "method": "GET",
+    "path": "/api/cameras",
+    "status": 200
+  },
+  {
+    "body": {
+      "configured": [
+        {
+          "id": "layer1",
+          "name": "第一层"
+        }
+      ],
+      "used": []
+    },
+    "case": "layers",
+    "method": "GET",
+    "path": "/api/layers",
+    "status": 200
+  },
+  {
+    "body": {
+      "changes": [],
+      "groups": [
+        {
+          "id": "net",
+          "items": [
+            {
+              "controls": [],
+              "danger": false,
+              "effect": "now",
+              "id": "NET-01",
+              "sensitive": false,
+              "title": "当前网络"
+            },
+            {
+              "controls": [
+                {
+                  "key": "net.hostname",
+                  "kind": "text",
+                  "label": "名字",
+                  "options": [],
+                  "value": "wine-cooler"
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "NET-02",
+              "sensitive": false,
+              "title": "本机名称"
+            }
+          ],
+          "title": "网络"
+        },
+        {
+          "id": "cam",
+          "items": [
+            {
+              "controls": [
+                {
+                  "key": "cam.cameras",
+                  "kind": "cameras",
+                  "label": "摄像头",
+                  "options": [],
+                  "value": "[{\"id\": \"/dev/v4l/by-id/usb-ALC-251223-CX_USB_Camera_01.00.00-video-index0\", \"label\": \"摄像头 1\", \"backend\": \"image_dir\", \"width\": 1280, \"height\": 720, \"rotate\": 0, \"dir\": \"/home/him/him/linux/rv1106_camera/data/samples/layer1\", \"fov\": 0.0, \"k1\": 0.0, \"k2\": 0.0, \"k3\": 0.0, \"k4\": 0.0, \"panX\": 0.0, \"panY\": 0.0, \"zoom\": 4.0}]"
+                }
+              ],
+              "danger": true,
+              "effect": "now",
+              "id": "CAM-01",
+              "sensitive": false,
+              "title": "摄像头"
+            },
+            {
+              "controls": [
+                {
+                  "key": "cam.layers",
+                  "kind": "layers",
+                  "label": "柜层",
+                  "options": [],
+                  "value": "[{\"id\": \"layer1\", \"name\": \"第一层\", \"camera\": \"/dev/v4l/by-id/usb-ALC-251223-CX_USB_Camera_01.00.00-video-index0\"}]"
+                }
+              ],
+              "danger": true,
+              "effect": "now",
+              "id": "CAM-02",
+              "sensitive": false,
+              "title": "柜层"
+            },
+            {
+              "controls": [
+                {
+                  "key": "cam.warmup",
+                  "kind": "number",
+                  "label": "开拍前等几秒",
+                  "options": [],
+                  "value": 0
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "CAM-03",
+              "sensitive": false,
+              "title": "开拍前等待"
+            },
+            {
+              "controls": [
+                {
+                  "key": "cam.batch",
+                  "kind": "number",
+                  "label": "一次抓几帧",
+                  "options": [],
+                  "value": 10
+                },
+                {
+                  "key": "cam.skip",
+                  "kind": "number",
+                  "label": "丢弃开头几帧",
+                  "options": [],
+                  "value": 4
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "CAM-04",
+              "sensitive": false,
+              "title": "采集节奏"
+            }
+          ],
+          "title": "采集"
+        },
+        {
+          "id": "trig",
+          "items": [
+            {
+              "controls": [
+                {
+                  "key": "trig.door_enabled",
+                  "kind": "switch",
+                  "label": "启用门磁 / 按键",
+                  "options": [],
+                  "value": false
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "TRIG-01",
+              "sensitive": false,
+              "title": "门磁 / 按键触发"
+            },
+            {
+              "controls": [
+                {
+                  "key": "trig.door_gpio",
+                  "kind": "text",
+                  "label": "GPIO",
+                  "options": [],
+                  "value": ""
+                },
+                {
+                  "key": "trig.door_closed_level",
+                  "kind": "radio",
+                  "label": "关上门时读到",
+                  "options": [
+                    "low",
+                    "high"
+                  ],
+                  "value": "low"
+                }
+              ],
+              "danger": false,
+              "effect": "service",
+              "id": "TRIG-02",
+              "sensitive": false,
+              "title": "门磁"
+            },
+            {
+              "controls": [
+                {
+                  "key": "trig.timer_enabled",
+                  "kind": "switch",
+                  "label": "启用定时观察",
+                  "options": [],
+                  "value": false
+                },
+                {
+                  "key": "trig.timer_minutes",
+                  "kind": "number",
+                  "label": "间隔（分钟）",
+                  "options": [],
+                  "value": 120
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "TRIG-03",
+              "sensitive": false,
+              "title": "定时观察"
+            },
+            {
+              "controls": [
+                {
+                  "key": "trig.manual_enabled",
+                  "kind": "switch",
+                  "label": "允许手工触发",
+                  "options": [],
+                  "value": true
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "TRIG-04",
+              "sensitive": false,
+              "title": "手工触发"
+            },
+            {
+              "controls": [
+                {
+                  "key": "trig.light_gpio",
+                  "kind": "text",
+                  "label": "GPIO",
+                  "options": [],
+                  "value": ""
+                },
+                {
+                  "key": "trig.light_active_level",
+                  "kind": "radio",
+                  "label": "亮灯时有效电平",
+                  "options": [
+                    "low",
+                    "high"
+                  ],
+                  "value": "high"
+                }
+              ],
+              "danger": false,
+              "effect": "service",
+              "id": "TRIG-05",
+              "sensitive": false,
+              "title": "柜内灯"
+            }
+          ],
+          "title": "触发"
+        },
+        {
+          "id": "judge",
+          "items": [
+            {
+              "controls": [
+                {
+                  "key": "judge.conf",
+                  "kind": "number",
+                  "label": "检测置信度下限",
+                  "options": [],
+                  "value": 0.3
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "JUDGE-01",
+              "sensitive": false,
+              "title": "多高的置信度算看到一个目标"
+            },
+            {
+              "controls": [
+                {
+                  "key": "judge.tau",
+                  "kind": "number",
+                  "label": "相似度下限",
+                  "options": [],
+                  "value": 0.68
+                },
+                {
+                  "key": "judge.margin",
+                  "kind": "number",
+                  "label": "要领先第二名多少",
+                  "options": [],
+                  "value": 0.02
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "JUDGE-02",
+              "sensitive": false,
+              "title": "认出类别所需的相似度与领先幅度"
+            },
+            {
+              "controls": [
+                {
+                  "key": "judge.cluster",
+                  "kind": "number",
+                  "label": "分到一组的阈值",
+                  "options": [],
+                  "value": 0.8
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "JUDGE-03",
+              "sensitive": false,
+              "title": "把「看起来一样」分到一组的松紧"
+            },
+            {
+              "controls": [
+                {
+                  "key": "judge.ref_dedupe",
+                  "kind": "number",
+                  "label": "参考图去重阈值",
+                  "options": [],
+                  "value": 0.95
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "JUDGE-04",
+              "sensitive": false,
+              "title": "新裁剪图与已有参考图差多少才算新角度"
+            },
+            {
+              "controls": [
+                {
+                  "key": "judge.ref_cap",
+                  "kind": "number",
+                  "label": "每类参考图上限",
+                  "options": [],
+                  "value": 12
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "JUDGE-05",
+              "sensitive": false,
+              "title": "每个类别最多留几张参考图"
+            },
+            {
+              "controls": [
+                {
+                  "key": "judge.stable_frames",
+                  "kind": "number",
+                  "label": "连续合格帧数",
+                  "options": [],
+                  "value": 3
+                },
+                {
+                  "key": "judge.diff_thresh",
+                  "kind": "number",
+                  "label": "帧间差异上限",
+                  "options": [],
+                  "value": 1.5
+                },
+                {
+                  "key": "judge.min_bright",
+                  "kind": "number",
+                  "label": "最暗亮度",
+                  "options": [],
+                  "value": 15
+                },
+                {
+                  "key": "judge.max_bright",
+                  "kind": "number",
+                  "label": "最亮亮度",
+                  "options": [],
+                  "value": 245
+                },
+                {
+                  "key": "judge.min_sharp",
+                  "kind": "number",
+                  "label": "最低清晰度",
+                  "options": [],
+                  "value": 20
+                },
+                {
+                  "key": "judge.settle_timeout",
+                  "kind": "number",
+                  "label": "等静止最长秒数",
+                  "options": [],
+                  "value": 10
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "JUDGE-06",
+              "sensitive": false,
+              "title": "画面静止与可用性判定"
+            }
+          ],
+          "title": "判定"
+        },
+        {
+          "id": "ai",
+          "items": [
+            {
+              "controls": [
+                {
+                  "key": "ai.enabled",
+                  "kind": "switch",
+                  "label": "启用",
+                  "options": [],
+                  "value": false
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "AI-01",
+              "sensitive": false,
+              "title": "启用外部模型辅助"
+            },
+            {
+              "controls": [
+                {
+                  "key": "ai.endpoint",
+                  "kind": "text",
+                  "label": "服务地址",
+                  "options": [],
+                  "value": ""
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "AI-02",
+              "sensitive": false,
+              "title": "服务地址"
+            },
+            {
+              "controls": [
+                {
+                  "key": "ai.key",
+                  "kind": "password",
+                  "label": "访问密钥",
+                  "options": [],
+                  "value": ""
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "AI-03",
+              "sensitive": true,
+              "title": "访问密钥"
+            },
+            {
+              "controls": [
+                {
+                  "key": "ai.model",
+                  "kind": "text",
+                  "label": "型号",
+                  "options": [],
+                  "value": ""
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "AI-04",
+              "sensitive": false,
+              "title": "使用哪个型号"
+            },
+            {
+              "controls": [
+                {
+                  "key": "ai.daily_limit",
+                  "kind": "number",
+                  "label": "每天最多调用",
+                  "options": [],
+                  "value": 50
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "AI-05",
+              "sensitive": false,
+              "title": "每天最多调用几次"
+            },
+            {
+              "controls": [
+                {
+                  "key": "ai.max_side",
+                  "kind": "number",
+                  "label": "上传边长上限",
+                  "options": [],
+                  "value": 1280
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "AI-06",
+              "sensitive": false,
+              "title": "上传画面的边长上限"
+            },
+            {
+              "controls": [
+                {
+                  "key": "ai.deep",
+                  "kind": "switch",
+                  "label": "深入查资料",
+                  "options": [],
+                  "value": false
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "AI-07",
+              "sensitive": false,
+              "title": "补全时是否深入查资料（更慢更贵）"
+            }
+          ],
+          "title": "大模型"
+        },
+        {
+          "id": "data",
+          "items": [
+            {
+              "controls": [
+                {
+                  "key": "data.observe_keep",
+                  "kind": "number",
+                  "label": "观察记录最多留几条",
+                  "options": [],
+                  "value": 200
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "DATA-01",
+              "sensitive": false,
+              "title": "观察记录最多留几条"
+            },
+            {
+              "controls": [
+                {
+                  "key": "data.export_target",
+                  "kind": "text",
+                  "label": "导出目标路径",
+                  "options": [],
+                  "value": ""
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "DATA-04",
+              "sensitive": false,
+              "title": "导出的目标地址"
+            },
+            {
+              "controls": [
+                {
+                  "key": "data.min_free_mb",
+                  "kind": "number",
+                  "label": "最低剩余空间 MB",
+                  "options": [],
+                  "value": 500
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "DATA-05",
+              "sensitive": false,
+              "title": "剩余空间低于多少就不许观察"
+            }
+          ],
+          "title": "数据"
+        },
+        {
+          "id": "sec",
+          "items": [
+            {
+              "controls": [
+                {
+                  "key": "sec.passcode",
+                  "kind": "password",
+                  "label": "设备口令",
+                  "options": [],
+                  "value": ""
+                },
+                {
+                  "key": "sec.passcode_hint",
+                  "kind": "text",
+                  "label": "口令提示",
+                  "options": [],
+                  "value": ""
+                }
+              ],
+              "danger": true,
+              "effect": "now",
+              "id": "SEC-01",
+              "sensitive": true,
+              "title": "设备口令"
+            }
+          ],
+          "title": "安全"
+        },
+        {
+          "id": "sys",
+          "items": [
+            {
+              "controls": [
+                {
+                  "key": "sys.log_level",
+                  "kind": "select",
+                  "label": "日志级别",
+                  "options": [
+                    "info",
+                    "warn",
+                    "error"
+                  ],
+                  "value": "info"
+                }
+              ],
+              "danger": false,
+              "effect": "now",
+              "id": "SYS-01",
+              "sensitive": false,
+              "title": "日志详细程度"
+            },
+            {
+              "controls": [
+                {
+                  "key": "sys.autostart",
+                  "kind": "switch",
+                  "label": "开机自动启动",
+                  "options": [],
+                  "value": true
+                }
+              ],
+              "danger": false,
+              "effect": "device",
+              "id": "SYS-02",
+              "sensitive": false,
+              "title": "开机是否自动启动"
+            }
+          ],
+          "title": "系统"
+        }
+      ]
+    },
+    "case": "settings",
+    "method": "GET",
+    "path": "/api/settings",
+    "status": 200
+  },
+  {
+    "body": {
+      "address": "<volatile>",
+      "connected": false,
+      "hostname": "<volatile>",
+      "mdnsUrl": "<volatile>",
+      "ssid": "<volatile>",
+      "supported": true
+    },
+    "case": "network",
+    "method": "GET",
+    "path": "/api/network",
+    "status": 200
+  },
+  {
+    "body": {
+      "details": {
+        "brand": "基线"
+      },
+      "id": 1,
+      "name": "基线条目",
+      "refs": [],
+      "shape": "bordeaux"
+    },
+    "case": "category-create",
+    "method": "POST",
+    "path": "/api/categories",
+    "status": 200
+  },
+  {
+    "body": {
+      "entities": 0
+    },
+    "case": "category-usage",
+    "method": "GET",
+    "path": "/api/categories/1/usage",
+    "status": 200
+  },
+  {
+    "body": {
+      "categories": [
+        {
+          "details": {
+            "brand": "基线"
+          },
+          "id": 1,
+          "name": "基线条目",
+          "refs": [],
+          "shape": "bordeaux"
+        }
+      ],
+      "categoryAliases": {},
+      "changes": [],
+      "checkpoints": [],
+      "layers": [
+        {
+          "id": "layer1",
+          "name": "第一层"
+        }
+      ],
+      "live": {
+        "cameras": [
+          {
+            "available": "<volatile>",
+            "id": "/dev/v4l/by-id/usb-ALC-251223-CX_USB_Camera_01.00.00-video-index0",
+            "label": "摄像头 1",
+            "layers": [
+              "layer1"
+            ]
+          }
+        ],
+        "door": null,
+        "doorLevel": null,
+        "hostUptimeSeconds": "<volatile>",
+        "ip": "<volatile>",
+        "lastObservationId": null,
+        "light": "off",
+        "now": "<volatile>",
+        "observing": false,
+        "scanStartedAt": null,
+        "scanTrigger": null,
+        "serviceUptimeSeconds": "<volatile>",
+        "storageFreeBytes": "<volatile>",
+        "storageLow": "<volatile>",
+        "storageTotalBytes": "<volatile>"
+      },
+      "observations": [],
+      "sequence": 0
+    },
+    "case": "snapshot-after-category",
+    "method": "GET",
+    "path": "/api/snapshot",
+    "status": 200
+  },
+  {
+    "body": {
+      "askable": true,
+      "categoryId": null,
+      "id": 20,
+      "key": "probe",
+      "label": "探针"
+    },
+    "case": "field-create",
+    "method": "POST",
+    "path": "/api/fields",
+    "status": 200
+  },
+  {
+    "body": [
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 1,
+        "key": "brand",
+        "label": "品牌"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 2,
+        "key": "series",
+        "label": "系列"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 3,
+        "key": "barcode",
+        "label": "条码"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 4,
+        "key": "kind",
+        "label": "品类"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 5,
+        "key": "producer",
+        "label": "生产商"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 6,
+        "key": "country",
+        "label": "生产国"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 7,
+        "key": "region",
+        "label": "产区"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 8,
+        "key": "bottling",
+        "label": "灌装地"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 9,
+        "key": "vintage",
+        "label": "年份"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 10,
+        "key": "grape",
+        "label": "原料/品种"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 11,
+        "key": "abv",
+        "label": "酒精度"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 12,
+        "key": "volume",
+        "label": "容量"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 13,
+        "key": "sweetness",
+        "label": "甜度"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 14,
+        "key": "packaging",
+        "label": "包装形式"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 15,
+        "key": "drink_window",
+        "label": "适饮期"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 16,
+        "key": "storage",
+        "label": "储存条件"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 17,
+        "key": "after_opening",
+        "label": "开瓶后保存"
+      },
+      {
+        "askable": false,
+        "categoryId": null,
+        "id": 18,
+        "key": "purchase",
+        "label": "采购来源"
+      },
+      {
+        "askable": false,
+        "categoryId": null,
+        "id": 19,
+        "key": "note",
+        "label": "备注"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 20,
+        "key": "probe",
+        "label": "探针"
+      }
+    ],
+    "case": "fields-after-create",
+    "method": "GET",
+    "path": "/api/fields",
+    "status": 200
+  },
+  {
+    "body": {
+      "detail": "没有这个类别"
+    },
+    "case": "category-usage-404",
+    "method": "GET",
+    "path": "/api/categories/99999/usage",
+    "status": 404
+  },
+  {
+    "body": {
+      "detail": [
+        {
+          "input": {},
+          "loc": [
+            "body",
+            "name"
+          ],
+          "msg": "Field required",
+          "type": "missing"
+        }
+      ]
+    },
+    "case": "category-create-422",
+    "method": "POST",
+    "path": "/api/categories",
+    "status": 422
+  },
+  {
+    "body": {
+      "light": "on"
+    },
+    "case": "light-on",
+    "method": "PUT",
+    "path": "/api/light",
+    "status": 200
+  },
+  {
+    "body": {
+      "categories": [
+        {
+          "details": {
+            "brand": "基线"
+          },
+          "id": 1,
+          "name": "基线条目",
+          "refs": [],
+          "shape": "bordeaux"
+        }
+      ],
+      "categoryAliases": {},
+      "changes": [],
+      "checkpoints": [],
+      "layers": [
+        {
+          "id": "layer1",
+          "name": "第一层"
+        }
+      ],
+      "live": {
+        "cameras": [
+          {
+            "available": "<volatile>",
+            "id": "/dev/v4l/by-id/usb-ALC-251223-CX_USB_Camera_01.00.00-video-index0",
+            "label": "摄像头 1",
+            "layers": [
+              "layer1"
+            ]
+          }
+        ],
+        "door": null,
+        "doorLevel": null,
+        "hostUptimeSeconds": "<volatile>",
+        "ip": "<volatile>",
+        "lastObservationId": null,
+        "light": "on",
+        "now": "<volatile>",
+        "observing": false,
+        "scanStartedAt": null,
+        "scanTrigger": null,
+        "serviceUptimeSeconds": "<volatile>",
+        "storageFreeBytes": "<volatile>",
+        "storageLow": "<volatile>",
+        "storageTotalBytes": "<volatile>"
+      },
+      "observations": [],
+      "sequence": 0
+    },
+    "case": "snapshot-after-light",
+    "method": "GET",
+    "path": "/api/snapshot",
+    "status": 200
+  },
+  {
+    "body": {
+      "light": "off"
+    },
+    "case": "light-off",
+    "method": "PUT",
+    "path": "/api/light",
+    "status": 200
+  },
+  {
+    "body": "<empty>",
+    "case": "fields-delete",
+    "method": "DELETE",
+    "path": "/api/fields/1",
+    "status": 204
+  },
+  {
+    "body": [
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 2,
+        "key": "series",
+        "label": "系列"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 3,
+        "key": "barcode",
+        "label": "条码"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 4,
+        "key": "kind",
+        "label": "品类"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 5,
+        "key": "producer",
+        "label": "生产商"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 6,
+        "key": "country",
+        "label": "生产国"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 7,
+        "key": "region",
+        "label": "产区"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 8,
+        "key": "bottling",
+        "label": "灌装地"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 9,
+        "key": "vintage",
+        "label": "年份"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 10,
+        "key": "grape",
+        "label": "原料/品种"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 11,
+        "key": "abv",
+        "label": "酒精度"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 12,
+        "key": "volume",
+        "label": "容量"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 13,
+        "key": "sweetness",
+        "label": "甜度"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 14,
+        "key": "packaging",
+        "label": "包装形式"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 15,
+        "key": "drink_window",
+        "label": "适饮期"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 16,
+        "key": "storage",
+        "label": "储存条件"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 17,
+        "key": "after_opening",
+        "label": "开瓶后保存"
+      },
+      {
+        "askable": false,
+        "categoryId": null,
+        "id": 18,
+        "key": "purchase",
+        "label": "采购来源"
+      },
+      {
+        "askable": false,
+        "categoryId": null,
+        "id": 19,
+        "key": "note",
+        "label": "备注"
+      },
+      {
+        "askable": true,
+        "categoryId": null,
+        "id": 20,
+        "key": "probe",
+        "label": "探针"
+      }
+    ],
+    "case": "fields-after-delete",
+    "method": "GET",
+    "path": "/api/fields",
+    "status": 200
+  }
+]

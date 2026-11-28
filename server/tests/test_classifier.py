@@ -6,7 +6,7 @@
 import numpy as np
 import pytest
 
-from server.infer.classifier import Classifier, ReferenceIndex, decide, scores_of
+from server.vision.classifier import Classifier, ReferenceIndex, decide, scores_of
 
 
 class StubEmbedder:

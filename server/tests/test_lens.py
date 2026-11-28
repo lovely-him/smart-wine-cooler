@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from PIL import Image, ImageDraw
 
-from server.hardware import lens
+from server.vision import lens
 
 SIZE = (640, 480)
 

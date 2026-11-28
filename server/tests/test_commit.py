@@ -6,12 +6,12 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from server.db import Database, checkpoints, repo
-from server.infer.classifier import ReferenceIndex
-from server.models.api import CommitEntity, CommitLayer, CommitRequest
-from server.models.objects import Box
-from server.pipeline import commit as commit_pipeline
-from server.pipeline import scan
+from server.platform.db import categories, checkpoints, Database, observations, references
+from server.vision.classifier import ReferenceIndex
+from server.api.schemas import CommitEntity, CommitLayer, CommitRequest
+from server.kernel.objects import Box
+from server.checkpoint import commit as commit_pipeline
+from server.observe import scan
 
 
 class StubDetector:
@@ -67,16 +67,16 @@ def runtime(tmp_path):
         image_dir=images,
         reference_dir=refs,
         config={"judge.ref_dedupe": 0.95, "judge.ref_cap": 12},
-        classifier=StubClassifier(),
-        cameras=[camera],
-        layers=[SimpleNamespace(id="layer1", name="第一层", camera=camera.id)],
-        grab_cfg={"skip": 0, "batch": 3},
-        detector=StubDetector(),
-        storage_low=lambda: False,
-        warmup_seconds=0,
+        plan=SimpleNamespace(
+            layers=[SimpleNamespace(id="layer1", name="第一层", camera=camera.id)],
+            grab_cfg={"skip": 0, "batch": 3},
+            warmup_seconds=0,
+        ),
+        engines=SimpleNamespace(detector=StubDetector(), classifier=StubClassifier()),
+        housekeeping=SimpleNamespace(storage_low=lambda: False, reclaim_space=lambda: 0),
     )
-    runtime.camera_of = lambda layer: camera
-    runtime.stability_cfg = lambda layer: {
+    runtime.plan.camera_of = lambda layer: camera
+    runtime.plan.stability_cfg = lambda layer: {
         "stable_frames": 3,
         "settle_timeout": 0.5,
         "grab_batch": 3,
@@ -86,20 +86,23 @@ def runtime(tmp_path):
         "min_sharp": 20,
         "rotate": 0,
     }
-    runtime.reload_references = lambda: None
+    runtime.engines.reload_references = lambda: None
     yield runtime
     db.close()
 
 
 def observe_once(runtime):
-    obs_id, status = scan.run_scan(runtime, "manual")
+    obs_id, status = scan.run_scan(
+        db=runtime.db, image_dir=runtime.image_dir, plan=runtime.plan,
+        engines=runtime.engines, housekeeping=runtime.housekeeping, trigger="manual",
+    )
     assert status == "done"
     return obs_id
 
 
 def test_commit_writes_checkpoint_with_images(runtime):
     obs_id = observe_once(runtime)
-    observation = repo.load_observation(runtime.db, obs_id)
+    observation = observations.load_observation(runtime.db, obs_id)
     entities = observation["layers"][0]["entities"]
 
     body = CommitRequest(
@@ -114,7 +117,14 @@ def test_commit_writes_checkpoint_with_images(runtime):
             )
         ],
     )
-    checkpoint_id = commit_pipeline.commit(runtime, body)
+    checkpoint_id = commit_pipeline.commit(
+            db=runtime.db,
+            image_dir=runtime.image_dir,
+            reference_dir=runtime.reference_dir,
+            config=runtime.config,
+            engines=runtime.engines,
+            body=body,
+        )
 
     saved = checkpoints.latest_checkpoint(runtime.db)
     assert saved["id"] == checkpoint_id
@@ -136,7 +146,14 @@ def test_manual_entity_gets_crop_generated(runtime):
             )
         ],
     )
-    commit_pipeline.commit(runtime, body)
+    commit_pipeline.commit(
+            db=runtime.db,
+            image_dir=runtime.image_dir,
+            reference_dir=runtime.reference_dir,
+            config=runtime.config,
+            engines=runtime.engines,
+            body=body,
+        )
 
     entity = checkpoints.latest_checkpoint(runtime.db)["submitted"][0]["entities"][0]
     assert entity["id"].endswith("add0")
@@ -145,9 +162,9 @@ def test_manual_entity_gets_crop_generated(runtime):
 
 
 def test_confirmed_entities_enter_reference_library(runtime):
-    category_id = repo.create_category(runtime.db, "示例类别")
+    category_id = categories.create_category(runtime.db, "示例类别")
     obs_id = observe_once(runtime)
-    entities = repo.load_observation(runtime.db, obs_id)["layers"][0]["entities"]
+    entities = observations.load_observation(runtime.db, obs_id)["layers"][0]["entities"]
 
     body = CommitRequest(
         base_observation_id=obs_id,
@@ -161,9 +178,16 @@ def test_confirmed_entities_enter_reference_library(runtime):
             )
         ],
     )
-    commit_pipeline.commit(runtime, body)
+    commit_pipeline.commit(
+            db=runtime.db,
+            image_dir=runtime.image_dir,
+            reference_dir=runtime.reference_dir,
+            config=runtime.config,
+            engines=runtime.engines,
+            body=body,
+        )
 
-    groups = repo.reference_groups(runtime.db)
+    groups = references.reference_groups(runtime.db)
     assert groups
     assert groups[0]["category_id"] == category_id
     assert len(list((runtime.reference_dir / str(category_id)).iterdir())) == len(groups)
@@ -172,7 +196,14 @@ def test_confirmed_entities_enter_reference_library(runtime):
 def test_missing_base_observation_rejected(runtime):
     body = CommitRequest(base_observation_id=999, layers=[CommitLayer(layer_id="layer1")])
     with pytest.raises(ValueError):
-        commit_pipeline.commit(runtime, body)
+        commit_pipeline.commit(
+            db=runtime.db,
+            image_dir=runtime.image_dir,
+            reference_dir=runtime.reference_dir,
+            config=runtime.config,
+            engines=runtime.engines,
+            body=body,
+        )
 
 
 def test_stale_base_rejected(runtime):
@@ -180,7 +211,14 @@ def test_stale_base_rejected(runtime):
     newer = observe_once(runtime)
     body = CommitRequest(base_observation_id=first, layers=[CommitLayer(layer_id="layer1")])
     with pytest.raises(commit_pipeline.ConflictError) as caught:
-        commit_pipeline.commit(runtime, body)
+        commit_pipeline.commit(
+            db=runtime.db,
+            image_dir=runtime.image_dir,
+            reference_dir=runtime.reference_dir,
+            config=runtime.config,
+            engines=runtime.engines,
+            body=body,
+        )
     assert caught.value.latest_observation_id == newer
 
 
@@ -188,13 +226,20 @@ def test_latest_base_accepted(runtime):
     observe_once(runtime)
     newest = observe_once(runtime)
     body = CommitRequest(base_observation_id=newest, layers=[CommitLayer(layer_id="layer1")])
-    commit_pipeline.commit(runtime, body)
+    commit_pipeline.commit(
+            db=runtime.db,
+            image_dir=runtime.image_dir,
+            reference_dir=runtime.reference_dir,
+            config=runtime.config,
+            engines=runtime.engines,
+            body=body,
+        )
     assert checkpoints.latest_checkpoint(runtime.db)["based_on_observation"] == newest
 
 
 def test_void_observation_does_not_block_commit(runtime):
     obs_id = observe_once(runtime)
-    repo.save_observation(
+    observations.save_observation(
         runtime.db,
         status="void",
         trigger="door",
@@ -202,31 +247,49 @@ def test_void_observation_does_not_block_commit(runtime):
         void_reason="第一层：门被打开，这次不算",
     )
     body = CommitRequest(base_observation_id=obs_id, layers=[CommitLayer(layer_id="layer1")])
-    commit_pipeline.commit(runtime, body)
+    commit_pipeline.commit(
+            db=runtime.db,
+            image_dir=runtime.image_dir,
+            reference_dir=runtime.reference_dir,
+            config=runtime.config,
+            engines=runtime.engines,
+            body=body,
+        )
     assert checkpoints.latest_checkpoint(runtime.db)["based_on_observation"] == obs_id
 
 
 def test_commit_does_not_change_observation(runtime):
     obs_id = observe_once(runtime)
-    before = repo.load_observation(runtime.db, obs_id)
+    before = observations.load_observation(runtime.db, obs_id)
     body = CommitRequest(
         base_observation_id=obs_id,
         layers=[CommitLayer(layer_id="layer1", entities=[])],
     )
-    commit_pipeline.commit(runtime, body)
-    assert repo.load_observation(runtime.db, obs_id) == before
+    commit_pipeline.commit(
+            db=runtime.db,
+            image_dir=runtime.image_dir,
+            reference_dir=runtime.reference_dir,
+            config=runtime.config,
+            engines=runtime.engines,
+            body=body,
+        )
+    assert observations.load_observation(runtime.db, obs_id) == before
 
 
 def test_position_history_merges_repeats_and_marks_gaps(runtime):
-    alpha = repo.create_category(runtime.db, "甲")
+    alpha = categories.create_category(runtime.db, "甲")
     obs_id = observe_once(runtime)
-    observation = repo.load_observation(runtime.db, obs_id)
+    observation = observations.load_observation(runtime.db, obs_id)
     entities = observation["layers"][0]["entities"]
 
     def commit(entities_in_order):
         return commit_pipeline.commit(
-            runtime,
-            CommitRequest(
+            db=runtime.db,
+            image_dir=runtime.image_dir,
+            reference_dir=runtime.reference_dir,
+            config=runtime.config,
+            engines=runtime.engines,
+            body=CommitRequest(
                 base_observation_id=obs_id,
                 layers=[CommitLayer(layer_id="layer1", entities=entities_in_order)],
             ),

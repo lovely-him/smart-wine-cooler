@@ -11,6 +11,7 @@
 | --- | --- |
 | 改完代码，想确认没写错 | `./tools/check/check.sh quick` |
 | 改完 wiki 文档 | `./tools/check/check.sh docs` |
+| 有意改了接口 | `./tools/baseline/run.sh update` 刷新快照，再跑 `./tools/check/check.sh all` |
 | 提交前 | `./tools/check/check.sh all` |
 | 部署到板子之后 | `./tools/deploy/deploy.sh status` + 界面看一眼 |
 

@@ -3,7 +3,7 @@
 
 规则见 `docs/smart-wine-cooler-wiki/00-文档规范.md`：
 - §4 引用写成「页代码 §节号」，页与节必须真实存在
-- §5 配置编号必须与 `server/config/defaults.py` 的 `ITEMS` 逐条一致；
+- §5 配置编号必须与 `server/platform/settings_def.py` 的 `ITEMS` 逐条一致；
      功能编号被引用就必须被定义，且同一编号只在一页里定义
 
 用法: docs_links.py <仓库根>
@@ -17,7 +17,7 @@ from pathlib import Path
 
 # ── 路径与常量 ──
 WIKI_DIR = Path("docs/smart-wine-cooler-wiki")
-DEFAULTS_PY = Path("server/config/defaults.py")
+DEFAULTS_PY = Path("server/platform/settings_def.py")
 
 CONFIG_PREFIXES = ("NET", "CAM", "TRIG", "JUDGE", "AI", "DATA", "SEC", "SYS")
 FEATURE_PREFIXES = ("BLD", "OBS", "DIF", "CAT", "HIS", "MNT")

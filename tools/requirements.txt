@@ -1,5 +1,21 @@
-numpy
-pillow
-onnx
-onnxruntime
-requests
+# tools 的唯一安装入口：把各命令自己声明的依赖汇总，装进同一个 tools/.venv。
+#
+# 为什么共用一个 venv 而不是每个命令一个：
+#   转换链要 torch、板端回归要 rknn-toolkit2、实验要 onnx/opencv，这些包都上 GB。
+#   按命令拆 venv 等于把同一批大包重复装若干份，而它们要的版本本来就一致
+#   （都被 onnx 1.16 / numpy 1.26 这条线钉住，见 convert/requirements.txt 里的说明）。
+#   所以要管的是「依赖写在哪」，不是「装几份」——文件即真相：
+#     tools/<命令>/requirements.txt   这个命令自己要什么
+#     tools/requirements.txt          全部汇总（本文件）
+#     tools/requirements-lock.txt     实测快照（pip freeze 生成）
+#
+# 装法：
+#   一次装齐   tools/.venv/bin/pip install -r tools/requirements.txt
+#   只装一个   tools/.venv/bin/pip install -r tools/label/requirements.txt
+#   复现环境   tools/.venv/bin/pip install -r tools/requirements-lock.txt
+#
+# check / deploy 纯标准库，不放清单。
+# gate 跑的是服务端代码，用 server/.venv 而不是 tools/.venv——比对的必须是真实运行环境。
+
+-r bench/requirements.txt
+-r convert/requirements.txt

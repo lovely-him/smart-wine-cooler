@@ -2,7 +2,7 @@
 
 import os
 
-from server.hardware import devices
+from server.vision import devices
 
 
 def _touch_link(root, name, target):

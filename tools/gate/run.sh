@@ -9,7 +9,7 @@ set -euo pipefail
 # ── 路径与常量 ──
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
-PY=$ROOT/.venv/bin/python
+PY=$ROOT/server/.venv/bin/python
 ENVFILE=$ROOT/tools/deploy/.env
 DETECT=$HERE/detect.py
 EMBED=$HERE/embed.py

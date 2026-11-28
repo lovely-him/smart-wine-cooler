@@ -2,7 +2,7 @@
 
 import pytest
 
-from server.db import Database, fields, repo
+from server.platform.db import categories, Database, fields
 
 
 @pytest.fixture
@@ -20,7 +20,7 @@ def test_seed_once_and_keep_edits(db):
 
 
 def test_category_field_overrides_global_label(db):
-    category_id = repo.create_category(db, "甲")
+    category_id = categories.create_category(db, "甲")
     fields.create_field(db, "vintage", "年份（这瓶特殊）", True, category_id)
 
     merged = {item["key"]: item for item in fields.list_fields(db, category_id)}
@@ -32,7 +32,7 @@ def test_category_field_overrides_global_label(db):
 
 
 def test_category_can_add_own_field(db):
-    category_id = repo.create_category(db, "甲")
+    category_id = categories.create_category(db, "甲")
     fields.create_field(db, "刻字", "瓶身刻字", False, category_id)
 
     assert "刻字" in {item["key"] for item in fields.list_fields(db, category_id)}
@@ -40,7 +40,7 @@ def test_category_can_add_own_field(db):
 
 
 def test_same_key_twice_in_one_scope_is_rejected(db):
-    category_id = repo.create_category(db, "甲")
+    category_id = categories.create_category(db, "甲")
 
     fields.create_field(db, "brand", "品牌二号", True, category_id)
     with pytest.raises(fields.KeyTaken):
@@ -60,9 +60,9 @@ def test_update_and_delete(db):
 
 
 def test_deleting_category_drops_its_fields(db):
-    category_id = repo.create_category(db, "甲")
+    category_id = categories.create_category(db, "甲")
     fields.create_field(db, "刻字", "瓶身刻字", True, category_id)
 
-    repo.delete_category(db, category_id)
+    categories.delete_category(db, category_id)
 
     assert all(item["categoryId"] is None for item in fields.list_fields(db))

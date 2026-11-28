@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from server.config import layers
+from server.platform import layers
 
 
 def cameras_json(*items):

@@ -12,13 +12,14 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from server.config.layers import CameraConfig, LayerConfig
-from server.db import Database, repo
-from server.events import EventBus
-from server.hardware.door import CLOSED, OPENED, MockDoor
-from server.pipeline import scan
-from server.pipeline.scheduler import Scheduler, blocked_reason
-from server.runtime import Runtime
+from server.platform.layers import CameraConfig, LayerConfig
+from server.platform.db import Database, observations
+from server.platform.events import EventBus
+from server.platform.door import CLOSED, OPENED, MockDoor
+from server.observe.runner import ObserveRunner
+from server.observe import scan
+from server.observe.scheduler import Scheduler, blocked_reason
+from server.platform.hardware import Hardware
 
 
 class StubDetector:
@@ -76,15 +77,18 @@ def make_runtime(workdir, pairs, category_id=None):
     runtime = SimpleNamespace(
         db=db,
         image_dir=workdir.images,
-        layers=[layer for _, layer in pairs],
-        grab_cfg={"skip": 0, "batch": 3},
-        detector=StubDetector(),
-        classifier=StubClassifier(category_id),
-        storage_low=lambda: False,
-        warmup_seconds=0,
+        plan=SimpleNamespace(
+            layers=[layer for _, layer in pairs],
+            grab_cfg={"skip": 0, "batch": 3},
+            warmup_seconds=0,
+        ),
+        engines=SimpleNamespace(detector=StubDetector(), classifier=StubClassifier(category_id)),
+        housekeeping=SimpleNamespace(
+            storage_low=lambda: False, reclaim_space=lambda: 0, trim=lambda: None
+        ),
     )
-    runtime.camera_of = lambda layer: cameras[layer.camera]
-    runtime.stability_cfg = lambda layer: {
+    runtime.plan.camera_of = lambda layer: cameras[layer.camera]
+    runtime.plan.stability_cfg = lambda layer: {
         "stable_frames": 3,
         "settle_timeout": 0.5,
         "grab_batch": 3,
@@ -95,6 +99,31 @@ def make_runtime(workdir, pairs, category_id=None):
         "rotate": cameras[layer.camera].rotate,
     }
     return runtime
+
+
+def run_scan(runtime, trigger, cancel=None):
+    return scan.run_scan(
+        db=runtime.db,
+        image_dir=runtime.image_dir,
+        plan=runtime.plan,
+        engines=runtime.engines,
+        housekeeping=runtime.housekeeping,
+        trigger=trigger,
+        cancel=cancel,
+    )
+
+
+def _db(tmp_path):
+    db = Database(tmp_path / "scheduler.db")
+    db.init_schema()
+    return db
+
+
+def _hardware(door):
+    hardware = Hardware({}, EventBus())
+    if door is not None:
+        hardware.attach_door(door)
+    return hardware
 
 
 def image_layer(layer_id, folder):
@@ -112,10 +141,10 @@ def image_layer(layer_id, folder):
 
 def test_scan_done_writes_layer_and_entities(workdir):
     runtime = make_runtime(workdir, [image_layer("layer1", workdir.good)])
-    obs_id, status = scan.run_scan(runtime, "manual")
+    obs_id, status = run_scan(runtime, "manual")
 
     assert status == "done"
-    loaded = repo.load_observation(runtime.db, obs_id)
+    loaded = observations.load_observation(runtime.db, obs_id)
     assert loaded["status"] == "done"
     assert len(loaded["layers"]) == 1
     layer = loaded["layers"][0]
@@ -133,10 +162,10 @@ def test_failed_layer_voids_whole_scan(workdir):
     runtime = make_runtime(
         workdir, [image_layer("layer1", workdir.good), image_layer("layer2", workdir.bad)]
     )
-    obs_id, status = scan.run_scan(runtime, "door")
+    obs_id, status = run_scan(runtime, "door")
 
     assert status == "void"
-    loaded = repo.load_observation(runtime.db, obs_id)
+    loaded = observations.load_observation(runtime.db, obs_id)
     assert loaded["status"] == "void"
     assert "layer2" in loaded["void_reason"]
     assert any("亮度" in item for item in [loaded["void_reason"]])
@@ -148,31 +177,31 @@ def test_failed_layer_voids_whole_scan(workdir):
 
 def test_cancel_before_layer_voids(workdir):
     runtime = make_runtime(workdir, [image_layer("layer1", workdir.good)])
-    obs_id, status = scan.run_scan(runtime, "door", cancel=lambda: True)
+    obs_id, status = run_scan(runtime, "door", cancel=lambda: True)
 
     assert status == "void"
-    loaded = repo.load_observation(runtime.db, obs_id)
+    loaded = observations.load_observation(runtime.db, obs_id)
     assert "门被打开" in loaded["void_reason"]
     assert loaded["layers"] == []
     runtime.db.close()
 
 
 def test_no_checkpoint_means_no_change_record(workdir):
-    from server.db import checkpoints
+    from server.platform.db import checkpoints, observations
 
     runtime = make_runtime(workdir, [image_layer("layer1", workdir.good)])
-    scan.run_scan(runtime, "manual")
+    run_scan(runtime, "manual")
     assert checkpoints.list_changes(runtime.db) == []
     runtime.db.close()
 
 
 def test_change_recorded_when_deviation_shifts(workdir):
-    from server.db import checkpoints
+    from server.platform.db import checkpoints, observations
 
     runtime = make_runtime(workdir, [image_layer("layer1", workdir.good)], category_id=7)
-    runtime.detector = StubDetector(counts=(2, 1))
+    runtime.engines.detector = StubDetector(counts=(2, 1))
 
-    first, _ = scan.run_scan(runtime, "manual")
+    first, _ = run_scan(runtime, "manual")
 
     tally = [{"layer_id": "layer1", "counts": [{"category_id": 7, "count": 2}]}]
     checkpoints.save_checkpoint(runtime.db, first, tally, tally)
@@ -181,7 +210,7 @@ def test_change_recorded_when_deviation_shifts(workdir):
     assert checkpoints.list_changes(runtime.db) == []
 
     # 第二次少了一件 → 偏差从 0 变成 -1，该记一条
-    scan.run_scan(runtime, "manual")
+    run_scan(runtime, "manual")
     records = checkpoints.list_changes(runtime.db)
     assert len(records) == 1
     assert records[0]["items"] == [{"layer_id": "layer1", "category_id": 7, "delta": -1}]
@@ -228,101 +257,96 @@ def test_blocked_when_door_is_open():
     assert blocked_reason(NoDoor()) is None
 
 
-def test_scheduler_triggers_on_door_close():
+def test_scheduler_triggers_on_door_close(tmp_path):
     calls = []
-
-    class FakeRuntime:
-        config = {"trig.timer_enabled": False, "trig.manual_enabled": True}
-        bus = EventBus()
-
-        def start_observe(self, trigger):
-            calls.append(trigger)
-            return True
-
-        def is_observing(self):
-            return False
-
-        def sync_light(self):
-            pass
-
-        def door_state(self):
-            return "closed"
-
-        def live_door(self):
-            return "closed"
-
-        def door_level(self):
-            return "low"
-
     door = MockDoor()
-    scheduler = Scheduler(FakeRuntime(), door)
+    interrupted = threading.Event()
+    db = _db(tmp_path)
+    scheduler = Scheduler(
+        config={"trig.timer_enabled": False},
+        db=db,
+        observe=SimpleNamespace(start_observe=calls.append, is_observing=lambda: False),
+        hardware=_hardware(door),
+        interrupted=interrupted,
+    )
 
     door.set(OPENED)
     scheduler._tick()
     assert calls == []
-    assert scheduler.cancelled() is True
+    assert interrupted.is_set() is True
 
     door.set(CLOSED)
     scheduler._tick()
     assert calls == ["door"]
-    assert scheduler.cancelled() is False
+    assert interrupted.is_set() is False
+    db.close()
 
 
-def test_scheduler_ignores_close_while_observing():
-    """门关照常上报，能不能开始由 runtime 决定——调度器不自己判断。"""
+def test_scheduler_ignores_close_while_observing(tmp_path):
+    """门关照常上报，能不能开始由观察状态决定——调度器不自己判断。"""
     calls = []
-
-    class FakeRuntime:
-        config = {"trig.timer_enabled": False}
-        bus = EventBus()
-
-        def start_observe(self, trigger):
-            calls.append(trigger)
-            return False
-
-        def is_observing(self):
-            return True
-
-        def sync_light(self):
-            pass
-
-        def door_state(self):
-            return "closed"
-
-        def live_door(self):
-            return "closed"
-
-        def door_level(self):
-            return "low"
-
     door = MockDoor()
-    scheduler = Scheduler(FakeRuntime(), door)
+    db = _db(tmp_path)
+    scheduler = Scheduler(
+        config={"trig.timer_enabled": False},
+        db=db,
+        observe=SimpleNamespace(start_observe=calls.append, is_observing=lambda: True),
+        hardware=_hardware(door),
+        interrupted=threading.Event(),
+    )
     door.set(OPENED)
     scheduler._tick()
     door.set(CLOSED)
     scheduler._tick()
     assert calls == ["door"]
+    db.close()
 
 
 def test_door_close_during_scan_is_replayed_after():
     """正在观察时门关：这次不能丢，记下来等收尾后补跑。"""
-    runtime = Runtime.__new__(Runtime)
-    runtime._observe_lock = threading.Lock()
-    runtime._observing = True
-    runtime._pending_trigger = None
+    runner = ObserveRunner.__new__(ObserveRunner)
+    runner._lock = threading.Lock()
+    runner._observing = True
+    runner._pending_trigger = None
 
-    assert runtime.start_observe("door") is False
-    assert runtime._pending_trigger == "door"
+    assert runner.start_observe("door") is False
+    assert runner._pending_trigger == "door"
 
-    assert runtime.start_observe("manual") is False
-    assert runtime._pending_trigger == "door"
+    assert runner.start_observe("manual") is False
+    assert runner._pending_trigger == "door"
+
+
+def test_runner_lights_up_for_the_whole_scan(workdir):
+    ctx = make_runtime(workdir, [image_layer("layer1", workdir.good)])
+    hardware = _hardware(MockDoor())
+    runner = ObserveRunner(
+        db=ctx.db,
+        image_dir=ctx.image_dir,
+        plan=ctx.plan,
+        engines=ctx.engines,
+        housekeeping=ctx.housekeeping,
+        bus=EventBus(),
+        sync_light=hardware.sync_light,
+        interrupted=threading.Event(),
+    )
+
+    assert runner.start_observe("door") is True
+    assert runner.is_observing() is True
+    assert hardware.light_state() == "on"
+
+    deadline = time.monotonic() + 30
+    while runner.is_observing() and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert hardware.light_state() == "off"
+    assert runner.snapshot()["lastObservationId"] is not None
+    ctx.db.close()
 
 
 def test_run_scan_waits_for_light_before_opening_stream(workdir):
     runtime = make_runtime(workdir, [image_layer("layer1", workdir.good)])
-    runtime.warmup_seconds = 0.2
+    runtime.plan.warmup_seconds = 0.2
     started = time.monotonic()
-    obs_id, status = scan.run_scan(runtime, "door")
+    obs_id, status = run_scan(runtime, "door")
     assert status == "done"
     assert time.monotonic() - started >= 0.2
     runtime.db.close()
@@ -330,41 +354,34 @@ def test_run_scan_waits_for_light_before_opening_stream(workdir):
 
 def test_run_scan_voids_when_door_opens_during_warmup(workdir):
     runtime = make_runtime(workdir, [image_layer("layer1", workdir.good)])
-    runtime.warmup_seconds = 5
+    runtime.plan.warmup_seconds = 5
     started = time.monotonic()
-    obs_id, status = scan.run_scan(
+    obs_id, status = run_scan(
         runtime, "door", cancel=lambda: time.monotonic() - started > 0.1
     )
     assert status == "void"
     assert time.monotonic() - started < 2
-    loaded = repo.load_observation(runtime.db, obs_id)
+    loaded = observations.load_observation(runtime.db, obs_id)
     assert "门被打开" in loaded["void_reason"]
     runtime.db.close()
 
 
 def test_timer_respects_interval(tmp_path):
-    from server.db import repo as db_repo
-
-    class FakeRuntime:
-        config = {"trig.timer_enabled": True, "trig.timer_minutes": 60}
-        db = Database(tmp_path / "timer.db")
-        calls = []
-
-        def observe(self, trigger):
-            self.calls.append(trigger)
-
-        def is_observing(self):
-            return False
-
-    FakeRuntime.db.init_schema()
-    scheduler = Scheduler(FakeRuntime(), None)
+    db = _db(tmp_path)
+    scheduler = Scheduler(
+        config={"trig.timer_enabled": True, "trig.timer_minutes": 60},
+        db=db,
+        observe=SimpleNamespace(start_observe=lambda trigger: True, is_observing=lambda: False),
+        hardware=_hardware(None),
+        interrupted=threading.Event(),
+    )
     assert scheduler._timer_due() is True
 
-    db_repo.save_observation(
-        FakeRuntime.db,
+    observations.save_observation(
+        db,
         status="done",
         trigger="manual",
         started_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"),
     )
     assert scheduler._timer_due() is False
-    FakeRuntime.db.close()
+    db.close()

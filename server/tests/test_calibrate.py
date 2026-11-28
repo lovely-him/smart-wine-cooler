@@ -2,7 +2,7 @@
 
 import pytest
 
-from server.hardware import calibrate
+from server.vision import calibrate
 
 WIDTH, HEIGHT = 1280, 720
 XS = (-450.0, -300.0, -150.0, 0.0, 150.0, 300.0, 450.0)

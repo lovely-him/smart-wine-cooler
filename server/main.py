@@ -10,8 +10,27 @@ import os
 
 import uvicorn
 
-from server import logs
+from server.platform import logs
 from server.app import create_app
+
+# 退出时给在飞的请求留多少秒；超时 uvicorn 会取消剩下的任务
+GRACEFUL_SECONDS = 5
+
+
+class Server(uvicorn.Server):
+    """收到 SIGTERM/SIGINT 时先收掉 SSE 流，再走 uvicorn 的退出流程。
+
+    uvicorn 退出时会等连接自然关闭，而 SSE 是长连接：不收掉就只能等 systemd
+    的超时把它 SIGKILL 掉（默认 90 秒）。
+    """
+
+    def __init__(self, config, drain):
+        super().__init__(config)
+        self._drain = drain
+
+    def handle_exit(self, sig, frame):
+        self._drain()
+        super().handle_exit(sig, frame)
 
 
 def resolve_bind(argv=None):
@@ -35,7 +54,18 @@ def main(argv=None):
     logs.install()
     # ws="none" 同时避开系统旧版 websockets：uvicorn 默认会导入它，而老版本里
     # 没有 ServerProtocol，导入即失败。本服务只用 HTTP。
-    uvicorn.run(create_app(), host=host, port=port, log_config=None, ws="none")
+    app = create_app()
+    Server(
+        uvicorn.Config(
+            app,
+            host=host,
+            port=port,
+            log_config=None,
+            ws="none",
+            timeout_graceful_shutdown=GRACEFUL_SECONDS,
+        ),
+        drain=lambda: app.state.bus.shutdown(),
+    ).run()
     return 0
 
 

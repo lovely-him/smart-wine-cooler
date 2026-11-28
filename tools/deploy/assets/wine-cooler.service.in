@@ -11,6 +11,7 @@ EnvironmentFile=-@RUN_DIR@/.env
 ExecStart=@PYTHON@ -m @MODULE@
 Restart=on-failure
 RestartSec=5
+TimeoutStopSec=20
 
 [Install]
 WantedBy=multi-user.target

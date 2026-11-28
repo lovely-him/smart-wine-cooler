@@ -2,8 +2,8 @@
 
 import pytest
 
-from server import retention
-from server.db import Database, repo
+from server.platform import retention
+from server.platform.db import Database, observations
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def env(tmp_path):
 
     ids = []
     for _ in range(5):
-        observation_id = repo.save_observation(
+        observation_id = observations.save_observation(
             db, status="done", trigger="manual", started_at="2026-11-22T10:00:00+08:00"
         )
         folder = images / str(observation_id)

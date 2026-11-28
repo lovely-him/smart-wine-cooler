@@ -17,8 +17,8 @@ try:
 except ImportError:
     sys.exit("缺少 pillow：pip install -r server/requirements.txt")
 
-from server.config import bootstrap
-from server.infer.detector import load_detector
+from server.platform import bootstrap
+from server.vision.detector import load_detector
 
 
 def resolve(backend, conf, rotate):

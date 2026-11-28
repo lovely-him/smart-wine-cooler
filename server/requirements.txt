@@ -1,4 +1,8 @@
-# 两端共用：宿主机与板子都要装
+# 两端共用的基础包。场景清单在它上面叠：
+#   requirements-host.txt   宿主机（开发期 onnx 推理）
+#   requirements-board.txt  板子（rknn NPU；厂商镜像已带时不要强装）
+#   requirements-dev.txt    开发机再加 pytest（已 -r host）
+# 这里不写版本：要复现环境装 requirements-lock.txt（pip freeze 生成的宿主机实测快照）。
 fastapi
 uvicorn
 pillow

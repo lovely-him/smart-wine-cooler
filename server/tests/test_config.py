@@ -4,9 +4,10 @@ import sqlite3
 
 import pytest
 
-from server.config import DEFAULTS, ConfigStore
-from server.config.store import MASK
-from server.db import Database
+from server.platform.settings_def import DEFAULTS
+from server.settings.store import ConfigStore
+from server.settings.store import MASK
+from server.platform.db import Database
 
 
 @pytest.fixture
@@ -120,7 +121,7 @@ def test_switch_coercion(db):
 
 def test_items_cover_every_setting(tmp_path):
     """每个设置键恰好属于一个配置项，界面上不会漏掉可改的东西。"""
-    from server.config.defaults import DEFAULTS, ITEMS
+    from server.platform.settings_def import DEFAULTS, ITEMS
 
     seen = {}
     for item in ITEMS:
@@ -133,7 +134,7 @@ def test_items_cover_every_setting(tmp_path):
 
 
 def test_item_ids_unique():
-    from server.config.defaults import ITEMS, ITEMS_BY_ID
+    from server.platform.settings_def import ITEMS, ITEMS_BY_ID
 
     ids = [item.id for item in ITEMS]
     assert len(ids) == len(set(ids))
@@ -141,7 +142,7 @@ def test_item_ids_unique():
 
 
 def test_items_cover_every_setting_key():
-    from server.config.defaults import ITEMS, SETTINGS
+    from server.platform.settings_def import ITEMS, SETTINGS
 
     covered = [key for item in ITEMS for key in item.keys]
     assert len(covered) == len(set(covered))
@@ -227,7 +228,7 @@ def test_plaintext_passcode_is_never_accepted(db):
 
 
 def test_export_drops_sensitive_settings(db, tmp_path):
-    from server.maintenance import _drop_sensitive
+    from server.settings.maintenance import _drop_sensitive
 
     store = ConfigStore(db)
     store.set_many("sec", {"sec.passcode": "1234", "sec.passcode_hint": "门牌号"})

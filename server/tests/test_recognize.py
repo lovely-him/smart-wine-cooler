@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from server.db import Database
-from server.infer import recognize
-from server.models.fields import ASKABLE, DETAIL_FIELDS
+from server.platform.db import Database
+from server.vision import recognize
+from server.kernel.fields import ASKABLE, DETAIL_FIELDS
 
 ASKABLE_KEYS = {item.key for item in ASKABLE}
 FORM_KEYS = {item.key for item in DETAIL_FIELDS}

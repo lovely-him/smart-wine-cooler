@@ -11,13 +11,20 @@ import argparse
 import json
 import sys
 
-from server import models
+from server import api, kernel
 
 SPEC_VERSION = "1"
+CONTRACT_MODULES = (kernel.objects, api.schemas)
 
 
 def _models():
-    return [getattr(models, name) for name in models.__all__]
+    names = {name for module in CONTRACT_MODULES for name in module.__all__}
+    return [
+        getattr(module, name)
+        for name in sorted(names)
+        for module in CONTRACT_MODULES
+        if hasattr(module, name)
+    ]
 
 
 def build():

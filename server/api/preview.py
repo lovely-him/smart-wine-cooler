@@ -12,8 +12,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from server.hardware import calibrate, lens
-from server.hardware.camera import V4l2Camera
+from server.vision import calibrate, lens
+from server.vision.camera import V4l2Camera
 
 CACHE_SECONDS = 60.0
 JPEG_QUALITY = 88
@@ -56,7 +56,7 @@ _lock = threading.Lock()
 _frames = {}
 
 
-def _frame(request, runtime):
+def _frame(request, hardware, is_observing):
     """按摄像头缓存原图；调参数时复用同一张，避免每次重新开流。"""
     with _lock:
         item = _frames.get(request.id)
@@ -77,12 +77,12 @@ def _frame(request, runtime):
                 "batch": 1,
             }
         )
-        runtime.set_light(True)
+        hardware.set_light(True)
         time.sleep(LIGHT_SETTLE)
         try:
             frame = camera.grab(1)[0]
         finally:
-            runtime.sync_light()
+            hardware.sync_light(is_observing())
         _frames[request.id] = {"frame": frame, "size": size, "at": time.monotonic()}
         return frame
 
@@ -108,13 +108,13 @@ def _render(request, frame):
     )
 
 
-def build_preview_router(runtime):
+def build_preview_router(hardware, is_observing):
     router = APIRouter()
 
     @router.post("/api/cameras/preview")
     def preview(request: PreviewRequest):
         try:
-            image = _render(request, _frame(request, runtime))
+            image = _render(request, _frame(request, hardware, is_observing))
         except Exception as exc:
             raise HTTPException(status_code=503, detail=f"取不到画面: {exc}") from exc
 

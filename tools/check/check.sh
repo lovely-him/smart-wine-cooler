@@ -1,21 +1,24 @@
 #!/usr/bin/env bash
 # 用法: tools/check/check.sh <子命令>
-#   quick    语法与导入自检（秒级，改完就绪跑这个）
+#   quick    语法、导入与分层自检（秒级，改完就绪跑这个）
 #   docs     文档自检（配置编号对账、功能编号与跨页引用；改 wiki 就跑）
 #   unit     单元测试（server/tests 存在时才真跑）
-#   all      quick + docs + unit
+#   baseline 接口快照：24 个用例的状态码与响应体与 golden 逐条比对
+#   all      quick + docs + unit + baseline
 #
-# 用仓库根的 .venv，可用 PY=... 覆盖
+# 用 server/.venv，可用 PY=... 覆盖
 # 退出码: 0 通过 / 1 不通过 / 2 环境或参数问题
 set -euo pipefail
 
 # ── 路径与常量 ──
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
-PY=${PY:-$ROOT/.venv/bin/python}
+PY=${PY:-$ROOT/server/.venv/bin/python}
 PKG=$ROOT/server
 TESTS=$PKG/tests
 DOCS=$HERE/lib/docs_links.py
+LAYERS=$HERE/lib/layers.py
+BASELINE=$ROOT/tools/baseline/run.sh
 
 # ── 函数 ──
 usage() {
@@ -27,7 +30,7 @@ log()  { printf '[check] %s\n' "$*"; }
 die()  { printf '[fail]  %s\n' "$*" >&2; exit 1; }
 
 require_python() {
-    [ -x "$PY" ] || die "找不到 python: $PY（先建 .venv）"
+    [ -x "$PY" ] || die "找不到 python: $PY（先建 server/.venv）"
 }
 
 cmd_quick() {
@@ -57,6 +60,8 @@ if failed:
     sys.exit(1)
 print(f"  已导入 {len(names)} 个模块")
 EOF
+    log "分层依赖"
+    "$PY" "$LAYERS" "$ROOT" || die "依赖方向不对（规则见 docs/impl/代码结构.md §3）"
     log "通过"
 }
 
@@ -75,6 +80,13 @@ cmd_unit() {
     "$PY" -m pytest -q "$TESTS" || die "单元测试不通过"
 }
 
+cmd_baseline() {
+    require_python
+    log "接口快照"
+    [ -x "$BASELINE" ] || die "找不到 $BASELINE"
+    "$BASELINE" check || die "接口返回与 golden 不一致（有意改接口就跑 tools/baseline/run.sh update）"
+}
+
 # ── main ──
 main() {
     local sub=${1:-}
@@ -85,7 +97,8 @@ main() {
         quick)   cmd_quick ;;
         docs)    cmd_docs ;;
         unit)    cmd_unit ;;
-        all)     cmd_quick; cmd_docs; cmd_unit ;;
+        baseline) cmd_baseline ;;
+        all)     cmd_quick; cmd_docs; cmd_unit; cmd_baseline ;;
         help | -h | --help) usage ;;
         *)       die "未知子命令: $sub（用 --help 看用法）" ;;
     esac

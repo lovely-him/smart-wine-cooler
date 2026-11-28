@@ -2,7 +2,7 @@
 
 import pytest
 
-from server.hardware.door import CLOSED, OPENED, MockDoor, load_door
+from server.platform.door import CLOSED, OPENED, MockDoor, load_door
 
 
 def test_initial_state_has_no_event():

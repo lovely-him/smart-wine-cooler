@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from server.pipeline.grouping import cluster, unknown_groups
+from server.catalog.grouping import cluster, unknown_groups
 
 
 def unit(*values):
@@ -59,7 +59,7 @@ def _runtime(tmp_path, mapping):
     for name, color in (("a.jpg", 0), ("b.jpg", 1), ("c.jpg", 2)):
         Image.new("RGB", (8, 8), (color, 0, 0)).save(images / "1" / name)
 
-    return SimpleNamespace(image_dir=images, classifier=Stub())
+    return SimpleNamespace(image_dir=images, engines=SimpleNamespace(classifier=Stub()))
 
 
 def _observation(*pairs):
@@ -81,7 +81,9 @@ def test_unknown_groups_reads_crops_and_skips_recognized(tmp_path):
     runtime = _runtime(tmp_path, {0: same, 1: same, 2: other})
     observation = _observation((None, "1/a.jpg"), (7, "1/b.jpg"), (None, "1/c.jpg"))
 
-    groups = unknown_groups(runtime, observation, 0.8)
+    groups = unknown_groups(
+        image_dir=runtime.image_dir, engines=runtime.engines, observation=observation, threshold=0.8
+    )
 
     assert groups == []
 
@@ -91,6 +93,8 @@ def test_unknown_groups_pairs_lookalikes(tmp_path):
     runtime = _runtime(tmp_path, {0: same, 1: same, 2: unit(0.0, 1.0)})
     observation = _observation((None, "1/a.jpg"), (None, "1/b.jpg"), (None, "1/c.jpg"))
 
-    groups = unknown_groups(runtime, observation, 0.8)
+    groups = unknown_groups(
+        image_dir=runtime.image_dir, engines=runtime.engines, observation=observation, threshold=0.8
+    )
 
     assert groups == [{"layerId": "layer1", "entityIds": ["1-layer1-0", "1-layer1-1"]}]

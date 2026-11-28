@@ -21,7 +21,7 @@ load_env() {
     SSH_TARGET=$BOARD_USER@$BOARD_HOST
     SERVICE_CMD="$BOARD_PYTHON -m $SERVICE_MODULE"
     UNIT_PATH=/etc/systemd/system/$SERVICE_NAME.service
-    PY=${PY:-$ROOT/.venv/bin/python}
+    PY=${PY:-$ROOT/server/.venv/bin/python}
     FRONTEND=${FRONTEND:-$ROOT/frontend}
     SYNC_PATHS=${SYNC_PATHS:-}
 }

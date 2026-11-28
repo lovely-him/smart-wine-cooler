@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# 提交前跑一遍全量检查：非 0 退出 → git 终止这次提交。
+#
+# 装一次（每个 clone 各一次）：
+#     git config core.hooksPath .githooks
+#
+# 三个已知边界，别把它当成万无一失：
+#   1. 检查的是**工作区**，不是暂存区——有未暂存的改动时，过的闸不是你提交的那份
+#   2. `git commit --no-verify` 能绕过它；真正的强制只能靠远端 CI
+#   3. 有意改接口时它会红，那是对的：先 tools/baseline/run.sh update 再提交
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+exec "$ROOT/tools/check/check.sh" all

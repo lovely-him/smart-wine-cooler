@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from server.hardware import quality, stability
+from server.vision import quality, stability
 
 
 class FakeCamera:

@@ -1,0 +1,4 @@
+# 板端/宿主机性能基准。宿主主机用 onnxruntime，板子上用厂商镜像自带的 rknn-toolkit-lite2。
+numpy
+pillow
+onnxruntime

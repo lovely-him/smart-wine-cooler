@@ -1,5 +1,6 @@
 # 本机配置与凭据
 .env
+.vscode
 
 # Python
 .venv/
@@ -20,9 +21,9 @@ cache/
 *.rknn
 
 # 实验数据与产出：本地产物，不进库
-/tools/embed_lab/models/
-/tools/embed_lab/data/
-/tools/embed_lab/out/
+/models/
+/data/
+/out/
 
 # 子仓库
 docs/smart-wine-cooler-wiki

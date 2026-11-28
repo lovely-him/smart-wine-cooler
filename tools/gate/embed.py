@@ -16,8 +16,8 @@ try:
 except ImportError:
     sys.exit("缺少 pillow：pip install -r server/requirements.txt")
 
-from server.config import bootstrap
-from server.infer.embedder import load_embedder
+from server.platform import bootstrap
+from server.vision.embedder import load_embedder
 
 
 def main():
